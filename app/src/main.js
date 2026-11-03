@@ -1,6 +1,7 @@
 import { Chess } from 'chess.js';
 import { Board, pieceSrc } from './board.js';
 import { Engine } from './engine.js';
+import { pickMove } from './minibot.js';
 import { detectBoard, fallbackBox } from './vision/detect.js';
 import { loadModel, classifyBoard, guessFlipped, gridToPlacement } from './vision/classify.js';
 import { summarise, terminalEval, judge, fmtWhite, whiteWin, openingName, inBook, CLASSES } from './coach.js';
@@ -36,10 +37,13 @@ const MODES = {
 const T = { entries: [], gen: 0 };                                   // tutor feed
 const R = { status: 'idle', run: 0, rows: [], evals: [], ws: [], counts: { w: {}, b: {} }, acc: { w: 0, b: 0 }, headers: {}, opening: null, speed: ['fast', 'std', 'deep'].includes(store.get('speed')) ? store.get('speed') : 'std' };
 // depth-limited (not time-limited): easy positions finish in a few ms, so reviews are quick; movetime is only a safety cap
+// Two passes, the same trick fast review sites use: a shallow pass gives the whole review almost at once,
+// then a deeper pass refines it in the background. Depth limits plus an early exit keep easy positions cheap.
+const QUICK = 'depth 9';
 const SPEEDS = {
-  fast: { go: 'depth 10 movetime 1200', early: { min: 7, n: 3, tol: 20 } },
-  std: { go: 'depth 13 movetime 2500', early: { min: 9, n: 3, tol: 12 } },
-  deep: { go: 'depth 16 movetime 5000', early: { min: 12, n: 4, tol: 8 } },
+  fast: { go: null, early: null, label: 'depth 9' },
+  std: { go: 'depth 14 movetime 2000', early: { min: 10, n: 3, tol: 10 }, label: 'depth 9, refined to 14' },
+  deep: { go: 'depth 18 movetime 4000', early: { min: 13, n: 4, tol: 8 }, label: 'depth 9, refined to 18' },
 };
 // chess clock (Player vs Player and Play the bot): starts after the first move, flag falls = loss on time
 const C = { w: 0, b: 0, running: null, last: 0, flag: null };
@@ -107,7 +111,7 @@ function play(from, to, promotion, byBot = false) {
   S.moves = S.moves.slice(0, S.ply);
   S.moves.push({ san: mv.san, from, to, promotion: mv.promotion, fen: g.fen() });
   T.entries.length = Math.min(T.entries.length, S.ply);
-  if (S.mode === 'tutor' && !batching) queueMicrotask(() => coachMove(S.moves.length - 1));
+  if (S.mode === 'tutor' && !batching) { const idx = S.moves.length - 1; queueMicrotask(() => coachMove(idx)); }
   S.ply++; S.lines = []; S.uncertain = new Set();
   if (!batching) clockSync();
   if (batching) return true;
@@ -145,7 +149,7 @@ function refresh() {
   else if (g && g.isDraw()) status = 'Draw';
   else if (!S.valid) status = 'Position needs fixing';
   else if (S.mode === 'review') status = S.ply ? `After move ${Math.ceil(S.ply / 2)}${S.ply % 2 ? '' : '…'}` : 'Starting position';
-  else if (vsBot()) status = humanCanMove() ? 'Your move' : 'Bot is thinking…';
+  else if (vsBot()) status = S.ply !== S.moves.length ? 'Viewing an earlier move' : humanCanMove() ? 'Your move' : 'Bot is thinking…';
   if (C.flag) status = vsBot() ? (C.flag === S.bot.human ? 'Time out, the bot wins' : 'Time out, you win!') : `Time out, ${C.flag === 'w' ? 'Black' : 'White'} wins`;
   t.querySelector('span').textContent = status;
   t.classList.toggle('over', (!!g && g.isGameOver()) || !!C.flag);
@@ -218,7 +222,7 @@ function setEval(sc) {
 // ---------- engine ----------
 let engine = null;
 function analyse() {
-  if (!S.valid || !engine || S.mode === 'bot' || (S.mode === 'pvp' && !S.hints)) return;
+  if (!S.valid || !engine || !(S.mode === 'analysis' || (S.mode === 'pvp' && S.hints))) return;
   const g = game(); if (g.isGameOver()) { S.lines = []; renderLines(); return; }
   const fen = curFen(), btn = $('#btn-suggest');
   const label = $('#suggest-label'), idle = suggestLabel();
@@ -276,22 +280,41 @@ function botTurn() {
 function syncBot() {
   const want = botTurn();
   if (!(botJob && botJob.fen === want)) {
-    if (botJob) { botEngine?.stop(); botJob = null; }
-    if (want) {
-      botEngine ??= new Engine({ multipv: 1, single: true });
-      const lv = LEVELS[S.bot.level], job = botJob = { fen: want }, t0 = performance.now();
-      botEngine.setOptions(lv.opts);
-      botEngine.analyse(want, lv.go, async (_l, done, best) => {
-        if (!done || botJob !== job) return;
-        await sleep(Math.max(0, 200 - (performance.now() - t0)));   // just enough to feel natural
-        if (botJob !== job || curFen() !== want) return;
-        botJob = null;
-        if (best) play(best.slice(0, 2), best.slice(2, 4), best[4], true); else refresh();
-      });
-    }
+    if (botJob) { clearTimeout(botJob.timer); botEngine?.stop(); botJob = null; }
+    if (want) startBotJob(want);
   }
   document.querySelectorAll('.player .think').forEach(el => el.classList.add('hidden'));
   if (botJob) botPlayerEl().querySelector('.think').classList.remove('hidden');
+}
+// Stockfish plays; if it fails to load or does not answer in time, the built-in engine (minibot.js) moves instead,
+// and after repeated failures it takes over for the session. The game can never hang on the bot.
+let botFails = 0;
+function startBotJob(fen) {
+  const lv = LEVELS[S.bot.level], job = botJob = { fen }, t0 = performance.now();
+  const finish = async best => {
+    if (botJob !== job) return;
+    clearTimeout(job.timer);
+    await sleep(Math.max(0, 200 - (performance.now() - t0)));   // just enough to feel natural
+    if (botJob !== job || curFen() !== fen) return;
+    botJob = null;
+    if (best) play(best.slice(0, 2), best.slice(2, 4), best[4], true); else refresh();
+  };
+  const fallback = () => setTimeout(() => { if (botJob === job) finish(pickMove(fen, S.bot.level, 600)); }, 0);
+  if (botFails >= 2) { fallback(); return; }
+  warmBot();
+  // generous on the first move (engine download + compile), tight once the engine is warm
+  job.timer = setTimeout(() => { if (botJob === job) { botFailed(); fallback(); } }, botEngine.isReady ? 4000 : 15000);
+  botEngine.analyse(fen, lv.go, (_l, done, best, failed) => {
+    if (!done || botJob !== job) return;
+    if (failed) { clearTimeout(job.timer); botFailed(); fallback(); return; }
+    finish(best);
+  });
+}
+function botFailed() {
+  botFails++;
+  try { botEngine?.terminate(); } catch { /* already gone */ }
+  botEngine = null;
+  if (botFails === 2) toast('Stockfish is not responding on this device, using the built-in engine', 4000);
 }
 const botPlayerEl = () => $(S.orient === S.bot.human ? '#pl-top' : '#pl-bot');
 
@@ -330,7 +353,7 @@ function renderMode(turn) {
   renderReview();
   $('#move-tip').textContent = bot ? 'Drag a piece or type your move. Take back to try a different line.' : 'Type a move, or drag pieces on the board. Paste a move list or PGN to rebuild a game.';
 }
-function warmBot() { botEngine ??= new Engine({ multipv: 1, single: true }); botEngine.setOptions(LEVELS[S.bot.level].opts); }
+function warmBot() { if (botFails >= 2) return; botEngine ??= new Engine({ multipv: 1, single: true }); botEngine.setOptions(LEVELS[S.bot.level].opts); }
 function setMode(m) {
   if (m === S.mode) return;
   S.mode = m; store.set('mode', m);
@@ -400,33 +423,42 @@ function evalFen(fen, ms) {
   if (evalCache.has(key)) return evalCache.get(key);
   const term = terminalEval(fen);
   const p = term ? Promise.resolve(term) : (evalChain = evalChain.then(() => new Promise(res => {
-    evalEngine ??= new Engine({ multipv: 3 });
-    let fin = false; const done = v => { if (!fin) { fin = true; res(v); } };
-    setTimeout(() => done(summarise(fen, [])), ms + 10000);
+    if (!evalEngine || evalEngine.dead) evalEngine = new Engine({ multipv: 3, single: true });
+    let fin = false; const done = v => { if (!fin) { fin = true; clearTimeout(t); res(v); } };
+    const t = setTimeout(() => { evalEngine?.terminate(); done(summarise(fen, [])); }, ms + 10000);   // stuck worker: replace it next time
     evalEngine.analyse(fen, ms, (lines, d) => { if (d) done(summarise(fen, lines)); });
   })));
   evalCache.set(key, p);
+  p.then(v => { if (!v.terminal && !v.lines.length) evalCache.delete(key); });   // never cache a failed evaluation
   return p;
 }
 /** Evaluate many positions in parallel on a small pool of single-thread workers, reporting each result as it lands.
  *  Cheap by design: stops searching once the best move is stable, and the pool is released shortly after use. */
 let pool = [], poolTimer = null;
 const releasePool = () => { clearTimeout(poolTimer); poolTimer = setTimeout(() => { pool.forEach(e => e.terminate()); pool = []; }, 15000); };
-async function evalBatch(fens, goFor, early, onResult, stopped) {
+async function evalBatch(fens, goFor, early, onResult, stopped, { reverse = false } = {}) {
   clearTimeout(poolTimer);
-  const n = Math.min(Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 2) - 1)), fens.length);
-  while (pool.length < n) pool.push(new Engine({ multipv: 2, single: true, hash: 8 }));
-  let next = 0;
-  await Promise.all(pool.slice(0, n).map(async eng => {
-    while (!stopped()) {
-      const i = next++; if (i >= fens.length) break;
-      const fen = fens[i], go = goFor(i), key = fen + '|b|' + go, term = terminalEval(fen);
+  pool = pool.filter(e => !e.dead);
+  const n = Math.min(Math.max(1, Math.min(4, Math.floor((navigator.hardwareConcurrency || 2) / 2))), fens.length);
+  while (pool.length < n) pool.push(new Engine({ multipv: 2, single: true, hash: 16 }));
+  // each worker takes a contiguous run of positions, so its hash table carries over between neighbouring positions;
+  // the refining pass walks each run backwards (as Lichess's fishnet does) so deeper results feed earlier positions
+  const size = Math.ceil(fens.length / n);
+  await Promise.all(pool.slice(0, n).map(async (eng, k) => {
+    const fresh = () => { const e = new Engine({ multipv: 2, single: true, hash: 16 }); pool[k] = e; return e; };
+    const idx = []; for (let i = k * size; i < Math.min(fens.length, (k + 1) * size); i++) idx.push(i);
+    if (reverse) idx.reverse();
+    for (const i of idx) {
+      if (stopped()) return;
+      const go = goFor(i); if (!go) continue;
+      const fen = fens[i], key = fen + '|b|' + go, term = terminalEval(fen);
       const ev = term || evalCache.get(key) || await new Promise(res => {
-        let fin = false; const finish = v => { if (!fin) { fin = true; res(v); } };
-        setTimeout(() => finish(summarise(fen, [])), 20000);
+        if (eng.dead) eng = fresh();
+        let fin = false; const finish = v => { if (!fin) { fin = true; clearTimeout(t); res(v); } };
+        const t = setTimeout(() => { eng.terminate(); finish(summarise(fen, [])); }, 20000);   // stuck worker: swap in a new one
         eng.analyse(fen, go, (lines, d) => { if (d) finish(summarise(fen, lines)); }, early);
       });
-      if (!term) evalCache.set(key, ev);
+      if (!term && ev.lines.length) evalCache.set(key, ev);
       if (!stopped()) onResult(i, ev);
     }
   }));
@@ -492,12 +524,34 @@ function coachMove(i) {
     if (live()) renderFeed();
   })();
 }
+/** Plain-English explanation built only from engine facts: used when no AI key is set (and never wrong about the numbers). */
+function templateText(e) {
+  if (!e.cls || !e.before || !e.after) return '';
+  const moverAfter = -e.after.cp, lost = (e.before.cp - moverAfter) / 100, line = (e.pv || []).slice(1, 4).join(' ');
+  const mateAgainst = e.after.mate > 0, mateFor = e.after.mate < 0 || e.after.terminal;
+  if (e.after.terminal && e.after.mate === 0) return `${e.san} delivers checkmate.`;
+  if (['best', 'great', 'brilliant'].includes(e.cls)) {
+    return `${e.san} is Stockfish's first choice here${mateFor ? ' and keeps a forced mate on the board' : ''}.${line ? ` The main line continues ${line}.` : ''}`;
+  }
+  if (e.cls === 'book') return `${e.san} is standard opening theory${S.base === START_FEN && e.sans ? ` (${openingName(e.sans) || 'a known line'})` : ''}.`;
+  if (['excellent', 'good'].includes(e.cls)) return `${e.san} is a solid move${e.bestSan ? `; ${e.bestSan} was a touch more precise` : ''}.`;
+  const how = mateAgainst ? 'allows a forced mate' : `costs about ${Math.abs(lost).toFixed(1)} pawns of evaluation`;
+  return `${e.san} ${how}, and the winning chances drop by ${e.drop.toFixed(0)}%.${e.bestSan ? ` ${e.bestSan} was stronger${line ? `, for example ${e.bestSan} ${line}` : ''}.` : ''}`;
+}
+/** Opening / middlegame / endgame for the position before a move. */
+function phaseOf(fen, ply, book) {
+  if (book || ply < 16) return 'opening';
+  const placement = fen.split(' ')[0], v = { n: 3, b: 3, r: 5, q: 9 };
+  let mat = 0; for (const ch of placement.toLowerCase()) mat += v[ch] || 0;
+  return mat <= 26 ? 'endgame' : 'middlegame';
+}
 function feedItem(e) {
   const head = `<div class="fb-h">${badge(e.cls)}<b>${esc(e.san)}</b><span class="who">${e.human ? 'You' : 'Bot'} · ${e.side === 'w' ? 'White' : 'Black'}</span><span class="ev">${esc(e.evalAfter || '')}</span></div>`;
   if (!e.cls) return `<div class="fb">${head}<div class="fb-b"><span class="dots">Evaluating…</span></div></div>`;
   const best = !e.isBest && e.bestSan && !['book', 'excellent', 'good'].includes(e.cls) ? ` Better was <b>${esc(e.bestSan)}</b>.` : '';
-  const body = e.text ? `<div class="txt">${esc(e.text)}</div>` : e.status === 'llm' ? '<span class="dots">Tutor is writing…</span>' : e.status === 'error' ? `<div class="err">${esc(e.err)}</div>` : '';
-  return `<div class="fb">${head}<div class="fb-b"><div class="eng"><b style="color:${CLASSES[e.cls].color}">${CLASSES[e.cls].label}.</b> ${ENGINE_BLURB[e.cls]}${best}</div>${body}</div></div>`;
+  const tpl = templateText(e);
+  const body = e.text ? `<div class="txt">${esc(e.text)}</div>` : e.status === 'llm' ? '<span class="dots">Tutor is writing…</span>' : e.status === 'error' ? `<div class="err">${esc(e.err)}</div><div class="txt">${esc(tpl)}</div>` : tpl ? `<div class="txt">${esc(tpl)}</div>` : '';
+  return `<div class="fb">${head}<div class="fb-b"><div class="eng"><b style="color:${CLASSES[e.cls].color}">${CLASSES[e.cls].label}.</b>${e.text ? ` ${ENGINE_BLURB[e.cls]}${best}` : ''}</div>${body}</div></div>`;
 }
 function renderFeed() {
   const el = $('#coach-feed'), note = $('#coach-note'), ok = llmReady();
@@ -539,32 +593,61 @@ function parseGame(raw) {
 function cancelReview() { R.run++; R.status = 'idle'; R.rows = []; R.evals = []; R.ws = []; }
 async function startReview(game) {
   if (game.moves.length < 2) throw new Error('That game has fewer than 2 moves, nothing to review.');
-  const run = ++R.run, cfg = SPEEDS[R.speed], standard = game.startFen === START_FEN;
+  const run = ++R.run, cfg = SPEEDS[R.speed], standard = game.startFen === START_FEN, t0 = performance.now();
   Object.assign(S, { base: game.startFen, moves: game.moves, ply: 0, valid: true, edit: false, lines: [], uncertain: new Set() });
   const f = game.startFen.split(' '); Object.assign(S, { placement: f[0], turn: f[1], castle: f[2] === '-' ? '' : f[2] });
   const fens = [game.startFen, ...game.moves.map(m => m.fen)], sans = game.moves.map(m => m.san);
-  Object.assign(R, { status: 'running', headers: game.headers || {}, rows: [], evals: [], ws: [], fens, total: game.moves.length, sans, standard, follow: true, got: 0,
-    counts: { w: {}, b: {} }, sum: { w: 0, b: 0 }, n: { w: 0, b: 0 }, acc: { w: 100, b: 100 }, opening: standard ? openingName(sans) : null });
+  Object.assign(R, { status: 'running', phase: 'quick', headers: game.headers || {}, rows: [], evals: [], ws: [], fens, total: game.moves.length, sans, standard, follow: true, got: 0,
+    counts: { w: {}, b: {} }, sum: { w: 0, b: 0 }, n: { w: 0, b: 0 }, acc: { w: 100, b: 100 }, opening: standard ? openingName(sans) : null, info: null });
   refresh();
-  const bar = $('#rv-bar'), txt = $('#rv-prog-txt');
-  // known opening moves only need a quick look; everything else gets the full depth
-  const goFor = i => (standard && i > 0 && inBook(sans, i) ? 'depth 8' : cfg.go);
-  await evalBatch(fens, goFor, cfg.early, (i, ev) => {
+  const bar = $('#rv-bar'), txt = $('#rv-prog-txt'), stopped = () => R.run !== run;
+  // pass 1: shallow, streamed move by move
+  await evalBatch(fens, () => QUICK, null, (i, ev) => {
     R.evals[i] = ev; R.ws[i] = whiteWin(ev, fens[i].split(' ')[1]); R.got++;
     bar.style.width = `${(R.got / fens.length) * 100}%`; txt.textContent = `Analysing move ${Math.min(R.rows.length + 1, R.total)} of ${R.total}…`;
     let added = false;
     while (R.evals[R.rows.length] && R.evals[R.rows.length + 1]) { pushRow(R.rows.length); added = true; }
     if (added) { if (R.follow) S.ply = R.rows.length; refresh(); } else renderReview();
-  }, () => R.run !== run);
-  if (R.run !== run) return;
-  R.status = 'done'; if (R.follow) S.ply = 0; refresh();
-  toast(game.partial ? 'Review ready, stopped at the first move it could not read' : 'Review ready', 3000);
+  }, stopped);
+  if (stopped()) return;
+  const quickMs = performance.now() - t0;
+  R.info = { label: cfg.label, quickMs, refineMs: null, workers: Math.min(4, Math.max(1, Math.floor((navigator.hardwareConcurrency || 2) / 2))) };
+  if (R.follow) S.ply = 0;
+  toast(game.partial ? 'Review ready, stopped at the first move it could not read' : `Review ready in ${(quickMs / 1000).toFixed(1)}s`, 3000);
+  // pass 2: deeper, in the background; the review stays usable and updates in place
+  if (cfg.go) {
+    R.phase = 'refine'; let done = 0, timer = null;
+    const todo = fens.map((_, i) => i).filter(i => !(standard && i > 0 && inBook(sans, i)) && !terminalEval(fens[i]));
+    bar.style.width = '0%'; txt.textContent = `Refining with deeper analysis… 0 of ${todo.length}`;
+    refresh();
+    const want = new Set(todo);
+    await evalBatch(fens, i => (want.has(i) ? cfg.go : null), cfg.early, (i, ev) => {
+      if (ev.lines.length) { R.evals[i] = ev; R.ws[i] = whiteWin(ev, fens[i].split(' ')[1]); }
+      done++; bar.style.width = `${(done / todo.length) * 100}%`; txt.textContent = `Refining with deeper analysis… ${done} of ${todo.length}`;
+      timer ??= setTimeout(() => { timer = null; if (!stopped()) { rebuildRows(); refresh(); } }, 250);
+    }, stopped, { reverse: true });
+    clearTimeout(timer);
+    if (stopped()) return;
+    rebuildRows();
+    R.info.refineMs = performance.now() - t0 - quickMs;
+  }
+  R.status = 'done'; R.phase = null; refresh();
+}
+/** Re-grade every move from the current evaluations (after the deeper pass), keeping tutor text where the verdict is unchanged. */
+function rebuildRows() {
+  const old = R.rows;
+  Object.assign(R, { rows: [], counts: { w: {}, b: {} }, sum: { w: 0, b: 0 }, n: { w: 0, b: 0 } });
+  for (let i = 0; i < R.total && R.evals[i] && R.evals[i + 1]; i++) {
+    pushRow(i);
+    if (old[i]?.text && old[i].cls === R.rows[i].cls) R.rows[i].text = old[i].text;
+  }
 }
 /** Grade move i as soon as both neighbouring positions are evaluated. */
 function pushRow(i) {
   const mv = S.moves[i], fens = R.fens, ev = R.evals, side = fens[i].split(' ')[1];
   const j = judge({ before: ev[i], after: ev[i + 1], uci: mv.from + mv.to + (mv.promotion || ''), fenBefore: fens[i], fenAfter: fens[i + 1], mover: side, prevCls: R.rows[i - 1]?.cls, book: R.standard && inBook(R.sans, i + 1) });
-  const r = { ...j, side, san: mv.san, who: 'The player', best: ev[i].best, before: ev[i], after: ev[i + 1], fenBefore: fens[i], fenAfter: fens[i + 1], sans: R.sans.slice(0, i + 1),
+  const book = R.standard && inBook(R.sans, i + 1);
+  const r = { ...j, side, phase: phaseOf(fens[i], i, book), san: mv.san, who: 'The player', best: ev[i].best, before: ev[i], after: ev[i + 1], fenBefore: fens[i], fenAfter: fens[i + 1], sans: R.sans.slice(0, i + 1),
     bestSan: ev[i].best ? uciToSan(fens[i], ev[i].best) : null, pv: pvToSan(fens[i], ev[i].lines[0]?.pv),
     evalAfter: fmtWhite(ev[i + 1], fens[i + 1].split(' ')[1]), evalBest: fmtWhite(ev[i], side) };
   R.rows.push(r);
@@ -583,7 +666,7 @@ function renderReview() {
   if (R.status === 'idle' || !has) return;
   $('#rv-summary').innerHTML = buildSummary(R, S.ply);
   const i = S.ply - 1, row = R.rows[i];
-  $('#card-rmove').innerHTML = buildMoveCard({ row, ply: S.ply, san: S.moves[i]?.san, side: row?.side, bestSan: row?.bestSan, evalAfter: row?.evalAfter, evalBest: row?.evalBest, text: row?.text, busy: row?.busy, err: row?.err, canExplain: llmReady(), opening: R.opening, pending: R.status === 'running' && S.ply > 0 && !row });
+  $('#card-rmove').innerHTML = buildMoveCard({ row, ply: S.ply, san: S.moves[i]?.san, side: row?.side, bestSan: row?.bestSan, evalAfter: row?.evalAfter, evalBest: row?.evalBest, text: row?.text, busy: row?.busy, err: row?.err, canExplain: llmReady(), template: row ? templateText(row) : '', opening: R.opening, pending: R.status === 'running' && S.ply > 0 && !row });
 }
 function reviewView() {
   const row = S.ply ? R.rows[S.ply - 1] : null, arrows = [];
@@ -612,7 +695,10 @@ function wireReview() {
     run({ headers: {}, startFen: S.base, moves: S.moves.map(m => ({ ...m })) });
   });
   $('#btn-rv-new').addEventListener('click', () => { cancelReview(); refresh(); });
-  $('#btn-rv-cancel').addEventListener('click', () => { cancelReview(); refresh(); });
+  $('#btn-rv-cancel').addEventListener('click', () => {
+    if (R.phase === 'refine') { R.run++; R.status = 'done'; R.phase = null; refresh(); toast('Kept the quick analysis'); }   // keep pass-1 results
+    else { cancelReview(); refresh(); }
+  });
   $('#seg-speed').addEventListener('click', e => { const b = e.target.closest('button[data-v]'); if (b) { R.speed = b.dataset.v; store.set('speed', R.speed); renderReview(); } });
   $('#rv-summary').addEventListener('click', e => {
     const g = e.target.closest('#rv-graph');
@@ -919,7 +1005,7 @@ function init() {
   $('#move-form').addEventListener('submit', e => {
     e.preventDefault(); const inp = $('#move-in'), v = inp.value.trim(); if (!v) return;
     let ok = false;
-    if (/^[123]$/.test(v)) { if (S.lines[+v - 1]) { playLine(+v - 1); inp.value = ''; } else { toast('Ask for suggestions first (Space)'); } inp.focus(); return; }
+    if (/^[123]$/.test(v)) { if (shown()[+v - 1]) { playLine(+v - 1); inp.value = ''; } else { toast('Ask for suggestions first (Space)'); } inp.focus(); return; }
     if (S.valid && !S.edit && /\s/.test(v)) { if (reportImport(importMoves(v))) inp.value = ''; return; }
     if (S.valid && !S.edit) {
       const m = v.match(/^([a-h][1-8])-?([a-h][1-8])([qrbn])?$/i);
@@ -932,7 +1018,9 @@ function init() {
   document.addEventListener('keydown', e => {
     if (IS_TAURI && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'v' && !e.target.closest('input, textarea')) { e.preventDefault(); pasteFromClipboard(); return; }
     if (e.target.closest('input, select, textarea') || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (document.querySelector('dialog[open]')) return;   // shortcuts are for the board, not for open dialogs
     const k = e.key;
+    if (k === ' ' && e.target.closest('button, summary')) return;   // let Space activate the focused control
     if (k === ' ') { e.preventDefault(); analyse(); }
     else if (k === 'ArrowLeft') goto(S.ply - 1);
     else if (k === 'ArrowRight') goto(S.ply + 1);
@@ -956,8 +1044,9 @@ function init() {
   paint();
   try {
     engine = new Engine({ multipv: P.lines });
-    engine.ready.then(() => { st.engine = 'ok'; st.threads = engine.threads; paint(); });
+    engine.ready.then(() => { st.engine = 'ok'; st.threads = engine.threads; paint(); }, () => { st.engine = 'err'; paint(); });
   } catch (e) { st.engine = 'err'; paint(); }
+  if (vsBot()) warmBot();
   modelReady = loadModel().then(() => { st.model = 'ok'; paint(); }).catch(() => { st.model = 'err'; paint(); toast('Vision model failed to load'); });
 
   if ('serviceWorker' in navigator && import.meta.env.PROD) navigator.serviceWorker.register('./sw.js').catch(() => {});

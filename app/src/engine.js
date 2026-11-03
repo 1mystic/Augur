@@ -1,19 +1,31 @@
 // Stockfish (WASM, lite) wrapper. One instance = one worker.
 // `multipv` lines for analysis; `single` forces the single-thread build (used by the bot).
+/** Multi-threaded WASM needs cross-origin isolation, SharedArrayBuffer and enough memory for the shared heap.
+ *  iOS and low-memory Android often fail that allocation silently, so they get the single-thread build. */
+export function threadsSafe() {
+  if (!self.crossOriginIsolated || typeof SharedArrayBuffer !== 'function' || typeof Atomics !== 'object') return false;
+  const mem = navigator.deviceMemory;
+  return mem === undefined ? !/iPhone|iPad|iPod/.test(navigator.userAgent) : mem >= 4;
+}
+
 export class Engine {
   constructor({ multipv = 3, single = false, hash = 0 } = {}) {
     // multi-threaded build when the page is cross-origin isolated (native app, dev server, COOP/COEP hosts)
     const cores = navigator.hardwareConcurrency || 1;
-    this.threads = !single && self.crossOriginIsolated && cores > 1 ? Math.min(8, Math.max(2, cores - 1)) : 1;
+    this.threads = !single && threadsSafe() && cores > 1 ? Math.min(4, Math.max(2, cores - 1)) : 1;
     this.multipv = multipv; this.options = {}; this.hash = hash;
-    this.ready = new Promise(res => (this._onReady = res));
+    // `ready` rejects if the worker never answers (blocked download, crashed wasm…) so callers can fall back instead of waiting forever
+    this.isReady = false; this.dead = false;
+    this.ready = new Promise((res, rej) => { this._onReady = res; this._onFail = rej; });
+    this.ready.catch(() => {});
+    this._loadTimer = setTimeout(() => this._fail('engine did not load'), 20000);
     this.searching = false; this.pending = null; this.lines = []; this.cb = null;
     this._boot();
   }
   _boot() {
     this.w = new Worker(this.threads > 1 ? './engine/stockfish-19-lite.js' : './engine/stockfish-19-lite-single.js');
     this.w.onmessage = e => this._line(String(e.data));
-    this.w.onerror = () => { if (this.threads > 1) { this.w.terminate(); this.threads = 1; this._boot(); } };
+    this.w.onerror = () => { if (this.threads > 1) { this.w.terminate(); this.threads = 1; this._boot(); } else this._fail('engine crashed'); };
     this.w.postMessage('uci');
     if (this.threads > 1) this.w.postMessage('setoption name Threads value ' + this.threads);
     this.w.postMessage('setoption name Hash value ' + (this.hash || (this.threads > 1 ? 64 : 32)));
@@ -21,13 +33,20 @@ export class Engine {
     for (const [k, v] of Object.entries(this.options)) this.w.postMessage(`setoption name ${k} value ${v}`);
     this.w.postMessage('isready');
   }
+  _fail(reason) {
+    if (this.dead) return;
+    this.dead = true; clearTimeout(this._loadTimer); this._onFail(new Error(reason));
+    const cb = this.cb; this.cb = null; this.searching = false; this.pending = null;
+    try { this.w.terminate(); } catch { /* already gone */ }
+    if (cb) cb(this.lines.filter(Boolean), true, null, true);
+  }
   /** UCI options such as {'Skill Level': 3, UCI_LimitStrength: true, UCI_Elo: 1500}. Applied between searches. */
   async setOptions(opts) {
-    await this.ready;
+    try { await this.ready; } catch { return; }
     for (const [k, v] of Object.entries(opts)) { this.options[k] = v; this.w.postMessage(`setoption name ${k} value ${v}`); }
   }
   _line(l) {
-    if (l === 'readyok') { this._onReady(); return; }
+    if (l === 'readyok') { if (!this.isReady) { this.isReady = true; clearTimeout(this._loadTimer); this._onReady(); } return; }
     if (l.startsWith('info') && l.includes(' pv ') && this.searching) {
       const g = k => { const m = l.match(new RegExp(` ${k} (\\S+)`)); return m && m[1]; };
       const mpv = +(g('multipv') || 1), depth = +g('depth');
@@ -59,12 +78,14 @@ export class Engine {
     this.w.postMessage('go ' + go);
   }
   /** `limit` is a think time in ms, or a raw UCI go string such as "depth 6 movetime 400". */
+  /** cb(lines, done, bestmove, failed): `failed` is true when the engine is unusable. */
   async analyse(fen, limit, cb, early) {
-    await this.ready;
+    try { await this.ready; } catch { cb(this.lines.filter(Boolean), true, null, true); return; }
+    if (this.dead) { cb([], true, null, true); return; }
     const job = { fen, go: typeof limit === 'number' ? 'movetime ' + limit : limit, cb, early };
     if (this.searching) { this.pending = job; this.w.postMessage('stop'); }
     else this._start(job);
   }
-  terminate() { this.cb = null; this.pending = null; this.w.terminate(); }
+  terminate() { this.cb = null; this.pending = null; this.dead = true; clearTimeout(this._loadTimer); this.w.terminate(); }
   stop() { this.pending = null; if (this.searching) { this.cb = null; this.w.postMessage('stop'); } }
 }

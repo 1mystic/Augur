@@ -38,13 +38,30 @@ export function buildSummary(R, ply) {
     </div>
     <div class="graph" id="rv-graph" title="Click to jump to a move">${buildGraph(R.ws.slice(0, R.rows.length + 1), ply, R.total)}</div>
     <table class="ctable"><tbody>${rows}</tbody></table>
+    ${phaseTable(R)}
     <div class="moments">
       <button class="btn" data-moment="-1" type="button" ${bad ? '' : 'disabled'}>‹ Previous mistake</button>
       <button class="btn" data-moment="1" type="button" ${bad ? '' : 'disabled'}>Next mistake ›</button>
-    </div>`;
+    </div>
+    ${R.info ? `<details class="prov"><summary>How was this produced?</summary><ul>
+      <li>Stockfish 19 lite (WebAssembly) running in your browser; nothing is uploaded.</li>
+      <li>Search: ${esc(R.info.label)}, top 2 lines per position, ${R.info.workers} worker${R.info.workers > 1 ? 's' : ''}.</li>
+      <li>Timing: quick pass ${(R.info.quickMs / 1000).toFixed(1)}s${R.info.refineMs != null ? `, refinement ${(R.info.refineMs / 1000).toFixed(1)}s` : R.phase === 'refine' ? ', refining…' : ''}.</li>
+      <li>Grades come from the drop in winning chances (Lichess win-probability model); accuracy uses the Lichess accuracy formula.</li>
+      <li>Explanations without an API key are templates built only from these engine numbers.</li>
+    </ul></details>` : ''}`;
 }
 
-export function buildMoveCard({ row, ply, san, side, bestSan, evalAfter, evalBest, text, busy, err, canExplain, opening, pending }) {
+function phaseTable(R) {
+  const P = ['opening', 'middlegame', 'endgame'], cell = (side, ph) => {
+    const rs = R.rows.filter(r => r.side === side && r.phase === ph);
+    return rs.length ? (rs.reduce((a, r) => a + r.acc, 0) / rs.length).toFixed(0) + '%' : '·';
+  };
+  if (!R.rows.some(r => r.phase)) return '';
+  return `<table class="ctable phase"><tbody><tr><td class="muted">Accuracy by phase</td><td>White</td><td>Black</td></tr>${P.map(ph => `<tr><td>${ph[0].toUpperCase() + ph.slice(1)}</td><td>${cell('w', ph)}</td><td>${cell('b', ph)}</td></tr>`).join('')}</tbody></table>`;
+}
+
+export function buildMoveCard({ row, ply, san, side, bestSan, evalAfter, evalBest, text, busy, err, canExplain, template, opening, pending }) {
   if (!row && pending) return `<div class="card-h"><h2>Move analysis</h2></div><div class="card-b"><div class="dots muted">Still analysing this move…</div></div>`;
   if (!row) {
     return `<div class="card-h"><h2>Move analysis</h2></div><div class="card-b"><div class="rm-top"><b>${ply === 0 ? 'Starting position' : 'Final position'}</b></div>
@@ -61,7 +78,7 @@ export function buildMoveCard({ row, ply, san, side, bestSan, evalAfter, evalBes
       <div class="rm-top">${badge(row.cls).replace('class="badge"', 'class="badge"')}<b>${esc(san)} is ${verdict}</b></div>
       ${fix}
       <div class="rm-evals"><span>Eval after: <b>${esc(evalAfter)}</b></span><span>Accuracy: <b>${row.acc.toFixed(0)}%</b></span></div>
-      ${text ? `<div class="txt" style="white-space:pre-wrap">${esc(text)}</div>` : busy ? '<div class="dots">The tutor is thinking…</div>' : err ? `<div class="err">${esc(err)}</div>` : ''}
+      ${text ? `<div class="txt" style="white-space:pre-wrap">${esc(text)}</div>` : busy ? '<div class="dots">The tutor is thinking…</div>' : `${err ? `<div class="err">${esc(err)}</div>` : ''}${template ? `<div class="txt">${esc(template)}</div>` : ''}`}
       ${canExplain && !text && !busy ? '<button class="btn sm" data-explain type="button">Explain this move</button>' : ''}
     </div>`;
 }

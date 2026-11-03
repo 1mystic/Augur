@@ -398,3 +398,10 @@ html { scrollbar-gutter: stable; }
 .clock { margin-left: auto; min-width: 74px; text-align: center; padding: 4px 10px; border-radius: var(--r-sm); background: var(--surface-2); border: 1px solid var(--border-strong); font: 700 15px ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
 .clock.run { background: var(--accent); color: #fff; border-color: transparent; }
 .clock.low { background: var(--warn); color: #fff; border-color: transparent; }
+
+/* ---------- review extras ---------- */
+.ctable.phase tr:first-child td { font-weight: 650; color: var(--muted); background: var(--surface-2); }
+.prov { margin-top: 12px; border: 1px solid var(--border); border-radius: var(--r); padding: 8px 12px; background: var(--surface-2); font-size: 12.5px; }
+.prov summary { cursor: pointer; font-weight: 600; color: var(--muted); }
+.prov ul { margin: 8px 0 2px; padding-left: 18px; color: var(--muted); line-height: 1.6; }
+.fair { margin: 10px 2px 0; }
