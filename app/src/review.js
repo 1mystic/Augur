@@ -61,7 +61,7 @@ function phaseTable(R) {
   return `<table class="ctable phase"><tbody><tr><td class="muted">Accuracy by phase</td><td>White</td><td>Black</td></tr>${P.map(ph => `<tr><td>${ph[0].toUpperCase() + ph.slice(1)}</td><td>${cell('w', ph)}</td><td>${cell('b', ph)}</td></tr>`).join('')}</tbody></table>`;
 }
 
-export function buildMoveCard({ row, ply, san, side, bestSan, evalAfter, evalBest, text, busy, err, canExplain, template, opening, pending }) {
+export function buildMoveCard({ row, ply, san, side, bestSan, evalAfter, evalBest, text, busy, err, canExplain, template, chips, opening, pending }) {
   if (!row && pending) return `<div class="card-h"><h2>Move analysis</h2></div><div class="card-b"><div class="dots muted">Still analysing this move…</div></div>`;
   if (!row) {
     return `<div class="card-h"><h2>Move analysis</h2></div><div class="card-b"><div class="rm-top"><b>${ply === 0 ? 'Starting position' : 'Final position'}</b></div>
@@ -78,6 +78,7 @@ export function buildMoveCard({ row, ply, san, side, bestSan, evalAfter, evalBes
       <div class="rm-top">${badge(row.cls).replace('class="badge"', 'class="badge"')}<b>${esc(san)} is ${verdict}</b></div>
       ${fix}
       <div class="rm-evals"><span>Eval after: <b>${esc(evalAfter)}</b></span><span>Accuracy: <b>${row.acc.toFixed(0)}%</b></span></div>
+      ${chips || ''}
       ${text ? `<div class="txt" style="white-space:pre-wrap">${esc(text)}</div>` : busy ? '<div class="dots">The tutor is thinking…</div>' : `${err ? `<div class="err">${esc(err)}</div>` : ''}${template ? `<div class="txt">${esc(template)}</div>` : ''}`}
       ${canExplain && !text && !busy ? '<button class="btn sm" data-explain type="button">Explain this move</button>' : ''}
     </div>`;

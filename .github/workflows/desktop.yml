@@ -4,6 +4,9 @@ on:
     tags: ['v*']
   workflow_dispatch:
 
+permissions:
+  contents: write   # tauri-action creates the (draft) release and uploads the installers
+
 jobs:
   build:
     strategy:
@@ -12,7 +15,7 @@ jobs:
         include:
           - os: macos-latest        # Apple Silicon .dmg
             args: --target aarch64-apple-darwin
-          - os: macos-13            # Intel .dmg
+          - os: macos-latest        # Intel .dmg, cross-compiled (the macos-13 Intel runners are retired)
             args: --target x86_64-apple-darwin
           - os: ubuntu-22.04        # .deb + .AppImage
             args: ''

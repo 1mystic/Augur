@@ -405,3 +405,10 @@ html { scrollbar-gutter: stable; }
 .prov summary { cursor: pointer; font-weight: 600; color: var(--muted); }
 .prov ul { margin: 8px 0 2px; padding-left: 18px; color: var(--muted); line-height: 1.6; }
 .fair { margin: 10px 2px 0; }
+
+/* ---------- motif chips ---------- */
+.motifs { display: flex; flex-wrap: wrap; gap: 6px; }
+.mchip { font-size: 11.5px; font-weight: 650; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--border-strong); background: var(--surface); }
+.mchip.good { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+.mchip.bad { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+.mchip.missed { color: #c48a12; border-color: rgba(196, 138, 18, .45); }

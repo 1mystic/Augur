@@ -2,6 +2,7 @@ import { Chess } from 'chess.js';
 import { Board, pieceSrc } from './board.js';
 import { Engine } from './engine.js';
 import { pickMove } from './minibot.js';
+import { detectMotifs } from './motifs.js';
 import { detectBoard, fallbackBox } from './vision/detect.js';
 import { loadModel, classifyBoard, guessFlipped, gridToPlacement } from './vision/classify.js';
 import { summarise, terminalEval, judge, fmtWhite, whiteWin, openingName, inBook, CLASSES } from './coach.js';
@@ -488,6 +489,7 @@ function tutorPrompt(e) {
     e.bestSan ? `Stockfish's preferred move was ${e.bestSan}${e.pv?.length ? ` (line: ${e.pv.join(' ')})` : ''}.` : '',
     alts.length ? `Other good options: ${alts.join(', ')}.` : '',
     opening ? `Opening: ${opening}.` : '',
+    e.motifs?.length ? `Tactical facts verified on the board: ${e.motifs.map(x => x.text).join(' ')}` : '',
     `The student is ${LEVEL_TXT[P.level]}.`,
     'Explain this move to the student.',
   ].filter(Boolean).join('\n');
@@ -515,7 +517,8 @@ function coachMove(i) {
     if (!live()) return;
     const sans = S.moves.slice(0, i + 1).map(m => m.san);
     const j = judge({ before, after, uci: mv.from + mv.to + (mv.promotion || ''), fenBefore, fenAfter, mover: side, prevCls: T.entries[i - 1]?.cls, book: S.base === START_FEN && inBook(sans, i + 1) });
-    Object.assign(entry, j, { before, after, sans, bestSan: before.best ? uciToSan(fenBefore, before.best) : null, pv: pvToSan(fenBefore, before.lines[0]?.pv), evalAfter: fmtWhite(after, fenAfter.split(' ')[1]), status: 'done' });
+    Object.assign(entry, j, { before, after, sans, uci: mv.from + mv.to + (mv.promotion || ''), bestSan: before.best ? uciToSan(fenBefore, before.best) : null, pv: pvToSan(fenBefore, before.lines[0]?.pv), evalAfter: fmtWhite(after, fenAfter.split(' ')[1]), status: 'done' });
+    entry.motifs = motifsFor(entry);
     refresh();
     if (!llmReady() || (P.who === 'mine' && !human)) return;
     entry.status = 'llm'; renderFeed();
@@ -524,19 +527,30 @@ function coachMove(i) {
     if (live()) renderFeed();
   })();
 }
+const motifCache = new Map();
+/** Tactical motifs for a graded move (cached: the review re-grades rows while it refines). */
+function motifsFor(e) {
+  const key = [e.fenBefore, e.uci, e.before.best, e.after.best, e.before.mate, e.after.mate, Math.round(e.drop)].join('|');
+  if (!motifCache.has(key)) { try { motifCache.set(key, detectMotifs(e)); } catch { motifCache.set(key, []); } }
+  return motifCache.get(key);
+}
+const motifChips = ms => (ms?.length ? `<div class="motifs">${ms.slice(0, 3).map(x => `<span class="mchip ${x.tone}">${esc(x.label)}</span>`).join('')}</div>` : '');
 /** Plain-English explanation built only from engine facts: used when no AI key is set (and never wrong about the numbers). */
 function templateText(e) {
   if (!e.cls || !e.before || !e.after) return '';
+  const ms = e.motifs || [], has = k => ms.some(x => x.key === k);
   const moverAfter = -e.after.cp, lost = (e.before.cp - moverAfter) / 100, line = (e.pv || []).slice(1, 4).join(' ');
-  const mateAgainst = e.after.mate > 0, mateFor = e.after.mate < 0 || e.after.terminal;
-  if (e.after.terminal && e.after.mate === 0) return `${e.san} delivers checkmate.`;
-  if (['best', 'great', 'brilliant'].includes(e.cls)) {
-    return `${e.san} is Stockfish's first choice here${mateFor ? ' and keeps a forced mate on the board' : ''}.${line ? ` The main line continues ${line}.` : ''}`;
-  }
-  if (e.cls === 'book') return `${e.san} is standard opening theory${S.base === START_FEN && e.sans ? ` (${openingName(e.sans) || 'a known line'})` : ''}.`;
-  if (['excellent', 'good'].includes(e.cls)) return `${e.san} is a solid move${e.bestSan ? `; ${e.bestSan} was a touch more precise` : ''}.`;
-  const how = mateAgainst ? 'allows a forced mate' : `costs about ${Math.abs(lost).toFixed(1)} pawns of evaluation`;
-  return `${e.san} ${how}, and the winning chances drop by ${e.drop.toFixed(0)}%.${e.bestSan ? ` ${e.bestSan} was stronger${line ? `, for example ${e.bestSan} ${line}` : ''}.` : ''}`;
+  let lead;
+  if (has('mate')) lead = '';
+  else if (['best', 'great', 'brilliant'].includes(e.cls)) lead = `${e.san} is Stockfish's first choice here${e.after.mate < 0 ? ' and keeps a forced mate on the board' : ''}.${line && !ms.length ? ` The main line continues ${line}.` : ''}`;
+  else if (e.cls === 'book') lead = `${e.san} is standard opening theory${S.base === START_FEN && e.sans ? ` (${openingName(e.sans) || 'a known line'})` : ''}.`;
+  else if (['excellent', 'good'].includes(e.cls)) lead = `${e.san} is a solid move${e.bestSan ? `; ${e.bestSan} was a touch more precise` : ''}.`;
+  else if (has('allows-mate') || has('missed-mate')) lead = `${e.san} is ${CLASSES[e.cls].label === 'Inaccuracy' ? 'an' : 'a'} ${CLASSES[e.cls].label.toLowerCase()}.`;
+  else lead = `${e.san} costs about ${Math.abs(lost).toFixed(1)} pawns of evaluation, and the winning chances drop by ${e.drop.toFixed(0)}%.`;
+  const facts = ms.slice(0, 2).map(x => x.text).join(' ');
+  const fix = !['best', 'great', 'brilliant', 'book', 'excellent', 'good'].includes(e.cls) && e.bestSan && !has('missed-mate') && !has('missed-capture')
+    ? ` ${e.bestSan} was stronger${line ? `, for example ${e.bestSan} ${line}` : ''}.` : '';
+  return [lead, facts].filter(Boolean).join(' ') + fix;
 }
 /** Opening / middlegame / endgame for the position before a move. */
 function phaseOf(fen, ply, book) {
@@ -551,7 +565,7 @@ function feedItem(e) {
   const best = !e.isBest && e.bestSan && !['book', 'excellent', 'good'].includes(e.cls) ? ` Better was <b>${esc(e.bestSan)}</b>.` : '';
   const tpl = templateText(e);
   const body = e.text ? `<div class="txt">${esc(e.text)}</div>` : e.status === 'llm' ? '<span class="dots">Tutor is writing…</span>' : e.status === 'error' ? `<div class="err">${esc(e.err)}</div><div class="txt">${esc(tpl)}</div>` : tpl ? `<div class="txt">${esc(tpl)}</div>` : '';
-  return `<div class="fb">${head}<div class="fb-b"><div class="eng"><b style="color:${CLASSES[e.cls].color}">${CLASSES[e.cls].label}.</b>${e.text ? ` ${ENGINE_BLURB[e.cls]}${best}` : ''}</div>${body}</div></div>`;
+  return `<div class="fb">${head}<div class="fb-b"><div class="eng"><b style="color:${CLASSES[e.cls].color}">${CLASSES[e.cls].label}.</b>${e.text ? ` ${ENGINE_BLURB[e.cls]}${best}` : ''}</div>${motifChips(e.motifs)}${body}</div></div>`;
 }
 function renderFeed() {
   const el = $('#coach-feed'), note = $('#coach-note'), ok = llmReady();
@@ -650,6 +664,7 @@ function pushRow(i) {
   const r = { ...j, side, phase: phaseOf(fens[i], i, book), san: mv.san, who: 'The player', best: ev[i].best, before: ev[i], after: ev[i + 1], fenBefore: fens[i], fenAfter: fens[i + 1], sans: R.sans.slice(0, i + 1),
     bestSan: ev[i].best ? uciToSan(fens[i], ev[i].best) : null, pv: pvToSan(fens[i], ev[i].lines[0]?.pv),
     evalAfter: fmtWhite(ev[i + 1], fens[i + 1].split(' ')[1]), evalBest: fmtWhite(ev[i], side) };
+  r.uci = mv.from + mv.to + (mv.promotion || ''); r.motifs = motifsFor(r);
   R.rows.push(r);
   R.counts[side][r.cls] = (R.counts[side][r.cls] || 0) + 1; R.sum[side] += r.acc; R.n[side]++;
   R.acc = { w: R.n.w ? R.sum.w / R.n.w : 100, b: R.n.b ? R.sum.b / R.n.b : 100 };
@@ -666,11 +681,14 @@ function renderReview() {
   if (R.status === 'idle' || !has) return;
   $('#rv-summary').innerHTML = buildSummary(R, S.ply);
   const i = S.ply - 1, row = R.rows[i];
-  $('#card-rmove').innerHTML = buildMoveCard({ row, ply: S.ply, san: S.moves[i]?.san, side: row?.side, bestSan: row?.bestSan, evalAfter: row?.evalAfter, evalBest: row?.evalBest, text: row?.text, busy: row?.busy, err: row?.err, canExplain: llmReady(), template: row ? templateText(row) : '', opening: R.opening, pending: R.status === 'running' && S.ply > 0 && !row });
+  $('#card-rmove').innerHTML = buildMoveCard({ row, ply: S.ply, san: S.moves[i]?.san, side: row?.side, bestSan: row?.bestSan, evalAfter: row?.evalAfter, evalBest: row?.evalBest, text: row?.text, busy: row?.busy, err: row?.err, canExplain: llmReady(), template: row ? templateText(row) : '', chips: row ? motifChips(row.motifs) : '', opening: R.opening, pending: R.status === 'running' && S.ply > 0 && !row });
 }
 function reviewView() {
   const row = S.ply ? R.rows[S.ply - 1] : null, arrows = [];
   if (row && !row.isBest && row.best && !['book', 'excellent', 'good'].includes(row.cls)) arrows.push({ from: row.best.slice(0, 2), to: row.best.slice(2, 4), color: '#4fbf8f', width: 12, label: '' });
+  // the opponent's punishing reply, so you can see what the mistake allowed
+  const reply = row?.after?.best;
+  if (reply && ['mistake', 'blunder', 'miss'].includes(row.cls)) arrows.push({ from: reply.slice(0, 2), to: reply.slice(2, 4), color: '#e0693f', width: 9, label: '' });
   return arrows;
 }
 async function explainRow(i) {

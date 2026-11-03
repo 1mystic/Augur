@@ -49,6 +49,7 @@ screenshot ──► board detector ──► 64 tiles ──► tiny CNN (≈40
 | **Player vs Player** | two humans, one board. optional **hints** (off by default): Stockfish shows a single suggested move on request. optional **clocks**: untimed, 3, 5 or 10 minutes (the clock starts after the first move, flag fall loses on time). |
 | **Play the bot** | Stockfish at three levels, *Easy* (~1000), *Intermediate* (~1700, Elo-limited), *Expert* (full strength). pick your colour, take moves back. replies come back in about a quarter of a second, and you can play it on a 3, 5 or 10 minute clock too. the bot can't hang: if Stockfish fails to load or answer in time (some phones can't allocate the WASM heap), a small built-in alpha-beta engine (`src/minibot.js`) moves instead. |
 | **Tutor lesson** | play the bot while a tutor explains every move (yours and the bot's) in plain English. each move is graded (best / good / inaccuracy / mistake / blunder…) by Stockfish; the wording comes from an LLM using **your own API key** (Anthropic, OpenAI, Gemini, OpenRouter or any OpenAI-compatible/local endpoint). without a key you still get the engine's verdict and the better move. |
+| **Coach layer** | every graded move (tutor and review) also gets **tactical motifs** found by board geometry on chess.js: hanging pieces, missed captures, forks, pins, skewers, discovered attacks and checks, king-safety changes (castling rights, pawn shield, pressure around the king), and missed or allowed checkmates. they show as chips, the opponent's punishing reply is drawn as a red arrow, and they feed both explanation layers: a **deterministic template explainer** (offline, instant, never contradicts the engine) and, if you add a key, the AI tutor, which receives them as verified facts. |
 | **Game review** | paste a PGN exported from chess.com, lichess or any app (or open a `.pgn`, or review the game you just played). you get accuracy for both sides, an eval graph, a classification table (brilliant → blunder), the opening name, "previous / next mistake" navigation, a best-move arrow plus badge on the board, and an optional "explain this move" via the AI tutor. it works the way fast review sites do: a shallow pass (depth 9) streams in move by move and gives the full review in well under a second, then a deeper pass (depth 14 Standard, 18 Deep) refines it in the background while you read. each worker takes a contiguous run of positions so its hash table carries over, the refining pass walks backwards (the trick Lichess's fishnet uses), searches exit early once the best move is stable, known opening moves get a quick look only, and the workers shut down after use. you also get accuracy by phase (opening / middlegame / endgame), a "How was this produced?" panel, and plain-English template explanations built from the engine's numbers when no AI key is set. |
 
 settings (gear icon):
@@ -80,6 +81,10 @@ npm run build        # static site in app/dist, host anywhere (github pages, net
 ```
 
 the built site is a PWA: open it in chrome/edge → *install app*. after first load everything (engine + model) is cached and it works offline.
+
+### download the desktop app
+
+native builds for **macOS** (Apple Silicon and Intel `.dmg`) and **Ubuntu / Linux** (`.deb` and `.AppImage`) are attached to each [GitHub release](https://github.com/1mystic/Augur/releases). they run fully offline with the same features. the macOS build is not notarised yet: on first launch right-click the app and choose *Open* (or run `xattr -dr com.apple.quarantine /Applications/Augur.app`).
 
 ### native desktop (Tauri, small installers, system webview)
 
