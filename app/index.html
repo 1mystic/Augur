@@ -48,9 +48,20 @@
   </svg>
 
   <header class="top">
-    <div class="brand"><img src="./icon.svg" alt="" width="30" height="30" /><b>augur</b><span>read the board · see ahead</span></div>
+    <div class="brand"><img src="./icon.svg" alt="" width="30" height="30" /><b>augur</b></div>
+    <nav class="rail" id="seg-mode" role="radiogroup" aria-label="Game mode">
+      <button type="button" role="radio" data-v="analysis" title="Analyse: scan, explore, top moves"><svg class="ic"><use href="#i-search"/></svg><span>Analyse</span></button>
+      <button type="button" role="radio" data-v="pvp" title="Player vs Player"><svg class="ic"><use href="#i-users"/></svg><span>PvP</span></button>
+      <button type="button" role="radio" data-v="bot" title="Play the bot"><svg class="ic"><use href="#i-bot"/></svg><span>Bot</span></button>
+      <button type="button" role="radio" data-v="tutor" title="Tutor lesson"><svg class="ic"><use href="#i-teacher"/></svg><span>Tutor</span></button>
+      <button type="button" role="radio" data-v="review" title="Game review"><svg class="ic"><use href="#i-chart"/></svg><span>Review</span></button>
+    </nav>
     <div class="top-r">
       <span class="status loading" id="status" role="status"><i></i><span>Loading…</span></span>
+      <div class="ng">
+        <button class="btn" id="btn-new" type="button" aria-haspopup="menu" aria-expanded="false" title="Start a new game"><svg class="ic"><use href="#i-plus"/></svg><span>New game</span></button>
+        <div class="ng-menu hidden" id="ng-menu" role="menu" aria-label="New game"></div>
+      </div>
       <button class="btn" id="btn-reset-all" type="button" title="Reset everything to defaults"><svg class="ic"><use href="#i-reset"/></svg><span>Reset</span></button>
       <button class="btn icon" id="btn-theme" type="button" title="Switch light / dark theme" aria-label="Switch theme"><svg class="ic"><use href="#i-moon"/></svg></button>
       <button class="btn icon" id="btn-settings" type="button" title="Settings (AI tutor key)" aria-label="Settings"><svg class="ic"><use href="#i-gear"/></svg></button>
@@ -59,20 +70,15 @@
   </header>
 
   <main class="layout">
-    <nav class="rail" id="seg-mode" role="radiogroup" aria-label="Game mode">
-      <button type="button" role="radio" data-v="analysis" title="Analyse: scan, explore, top moves"><svg class="ic"><use href="#i-search"/></svg><span>Analyse</span></button>
-      <button type="button" role="radio" data-v="pvp" title="Player vs Player"><svg class="ic"><use href="#i-users"/></svg><span>PvP</span></button>
-      <button type="button" role="radio" data-v="bot" title="Play the bot"><svg class="ic"><use href="#i-bot"/></svg><span>Bot</span></button>
-      <button type="button" role="radio" data-v="tutor" title="Tutor lesson"><svg class="ic"><use href="#i-teacher"/></svg><span>Tutor</span></button>
-      <button type="button" role="radio" data-v="review" title="Game review"><svg class="ic"><use href="#i-chart"/></svg><span>Review</span></button>
-    </nav>
     <section class="board-col">
       <div class="card board-card">
         <div class="board-wrap">
           <div class="evalbar" id="evalbar" title="Evaluation"><div class="fill"></div><span id="evaltext">0.0</span></div>
           <div class="board-stack">
-            <div class="player" id="pl-top"><i class="chip"></i><b></b><span class="sub"></span><span class="think hidden"><u></u><u></u><u></u></span><span class="clock hidden">0:00</span></div>
             <div id="board"></div>
+          </div>
+          <div class="side-players">
+            <div class="player" id="pl-top"><i class="chip"></i><b></b><span class="sub"></span><span class="think hidden"><u></u><u></u><u></u></span><span class="clock hidden">0:00</span></div>
             <div class="player" id="pl-bot"><i class="chip"></i><b></b><span class="sub"></span><span class="think hidden"><u></u><u></u><u></u></span><span class="clock hidden">0:00</span></div>
           </div>
         </div>
@@ -98,7 +104,7 @@
 
       <section class="pane" data-pane="main">
       <div class="card" id="card-game">
-        <div class="card-h"><div class="kick"><span class="kicker" id="mode-kicker">Analysis</span></div><button class="btn sm" id="btn-new" type="button"><svg class="ic"><use href="#i-plus"/></svg><span>New game</span></button></div>
+        <div class="card-h"><div class="kick"><span class="kicker" id="mode-kicker">Analysis</span></div></div>
         <div class="card-b">
           <p class="mode-desc muted" id="mode-desc"></p>
           <div class="opts hidden" id="opts-pvp">
@@ -188,6 +194,7 @@
       <div class="card hidden" id="card-rmove"></div>
       </section>
 
+      <div class="side-col" id="side-col">
       <section class="pane" data-pane="moves">
       <div class="card" id="card-moves">
         <div class="card-h"><h2>Moves</h2><div class="hdr-btns"><button class="btn sm" id="btn-export" type="button" title="Export or share this game"><svg class="ic"><use href="#i-share"/></svg><span>Export</span></button><button class="btn sm" id="btn-reset" type="button" title="Rewind to the first position"><svg class="ic"><use href="#i-undo"/></svg><span>Rewind</span></button></div></div>
@@ -236,6 +243,7 @@
         </div>
       </div>
       </section>
+      </div>
     </aside>
   </main>
 

@@ -1,4 +1,4 @@
-import '@fontsource-variable/space-grotesk';
+import '@fontsource-variable/outfit';
 import '@fontsource-variable/jetbrains-mono';
 import { Chess } from 'chess.js';
 import { Board, pieceSrc } from './board.js';
@@ -156,7 +156,7 @@ function refresh() {
   if (C.flag) status = vsBot() ? (C.flag === S.bot.human ? 'Time out, the bot wins' : 'Time out, you win!') : `Time out, ${C.flag === 'w' ? 'Black' : 'White'} wins`;
   t.querySelector('span').textContent = status;
   t.classList.toggle('over', (!!g && g.isGameOver()) || !!C.flag);
-  if (g && g.isGameOver() && S.moves.length && S.ply === S.moves.length && S.endShown !== fen) { S.endShown = fen; toast(status, 4000); }
+  if (g && g.isGameOver() && S.moves.length && S.ply === S.moves.length && S.endShown !== fen) { S.endShown = fen; if (g.isCheckmate()) matePop(winner); else toast(status, 4000); }
   // move box follows the side to move
   const mine = humanCanMove();
   const over = !g || g.isGameOver() || S.edit || !mine, side = turn === 'w' ? 'White' : 'Black';
@@ -173,6 +173,17 @@ function refresh() {
   $('#evalbar').classList.toggle('flip', S.orient === 'b');
   renderMoves(); renderTimeline(); renderLines();
   syncBot();
+  scheduleLayout();
+}
+/** Animated checkmate badge over the board: pops in, holds, fades out after 3 seconds. */
+function matePop(winner) {
+  $('#board .mate-pop')?.remove();
+  const sub = vsBot() ? (winner === (S.bot.human === 'w' ? 'White' : 'Black') ? 'You win!' : 'The bot wins') : `${winner} wins`;
+  const el = document.createElement('div');
+  el.className = 'mate-pop'; el.setAttribute('role', 'status');
+  el.innerHTML = `<div class="mp"><span class="mp-k">#</span><b>Checkmate</b><span class="mp-s">${sub}</span></div>`;
+  $('#board').appendChild(el);
+  setTimeout(() => el.remove(), 3000);
 }
 function setSeg(sel, v) { document.querySelectorAll(sel + ' button').forEach(b => b.classList.toggle('on', b.dataset.v === v)); }
 
@@ -323,6 +334,9 @@ const botPlayerEl = () => $(S.orient === S.bot.human ? '#pl-top' : '#pl-bot');
 
 // ---------- modes ----------
 function renderMode(turn) {
+  document.body.dataset.mode = S.mode;
+  document.body.classList.toggle('timed', timed());
+  $('#card-game').classList.toggle('hidden', S.mode === 'analysis' || S.mode === 'review');   // these modes have no settings, only a description   // player labels + clocks beside the board only matter in timed games
   document.querySelectorAll('#seg-mode button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === S.mode)));
   $('#mode-desc').textContent = MODES[S.mode];
   $('#opts-pvp').classList.toggle('hidden', S.mode !== 'pvp'); $('#opts-bot').classList.toggle('hidden', !vsBot());
@@ -351,8 +365,7 @@ function renderMode(turn) {
   }
   $('#card-coach').classList.toggle('hidden', S.mode !== 'tutor'); $('#card-review').classList.toggle('hidden', S.mode !== 'review');
   $('#card-play').classList.toggle('hidden', S.mode === 'review' && !R.rows.length);
-  $('#btn-new').classList.toggle('hidden', S.mode === 'review');
-  $('#mode-kicker').textContent = { analysis: 'Analysis', pvp: 'Player vs Player', bot: 'Play the bot', tutor: 'Tutor lesson', review: 'Game review' }[S.mode];
+  $('#mode-kicker').textContent = { analysis: 'Analysis', pvp: 'Game settings', bot: 'Bot settings', tutor: 'Lesson settings', review: 'Game review' }[S.mode];
   $('#tab-main-label').textContent = { analysis: 'Engine', pvp: 'Game', bot: 'Game', tutor: 'Lesson', review: 'Review' }[S.mode];
   $('#move-form').classList.toggle('hidden', S.mode === 'review'); $('#move-tip').classList.toggle('hidden', S.mode === 'review');
   if (S.mode === 'tutor') renderFeed();
@@ -360,6 +373,32 @@ function renderMode(turn) {
   $('#move-tip').textContent = bot ? 'Drag a piece or type your move. Take back to try a different line.' : 'Type a move, or drag pieces on the board. Paste a move list or PGN to rebuild a game.';
 }
 function warmBot() { if (botFails >= 2) return; botEngine ??= new Engine({ multipv: 1, single: true }); botEngine.setOptions(LEVELS[S.bot.level].opts); }
+// ---------- adaptive layout ----------
+// Desktop: the board gets the most space that still leaves room for the tabbed panel. Wide screens put the
+// panel beside a full-height board; tall or narrow screens put it in the space below the board.
+// The panel shows one view at a time (sub-navbar), so nothing scrolls sideways. Phones keep the stacked layout.
+const DESKTOP = matchMedia('(min-width: 981px)');
+const PANEL_W = 330, PANEL_H = 300, GAP = 18;
+let layoutQueued = false;
+function scheduleLayout() { if (!layoutQueued) { layoutQueued = true; requestAnimationFrame(() => { layoutQueued = false; relayout(); }); } }
+function relayout() {
+  const root = document.documentElement.style, layout = $('.layout');
+  if (!DESKTOP.matches) { layout.classList.remove('below'); layout.style.height = ''; for (const v of ['--board', '--bw']) root.removeProperty(v); return; }
+  layout.style.height = Math.floor(innerHeight - $('.top').offsetHeight) + 'px';   // exactly the space under the header: no page scroll
+  const cs = getComputedStyle(layout), card = $('.board-card'), stack = $('.board-stack');
+  const H = Math.floor(layout.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom));
+  const W = layout.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  const extraW = card.offsetWidth - stack.offsetWidth, extraH = card.offsetHeight - stack.offsetHeight;
+  const minBoard = Math.max(360, Math.round(H * 0.6));
+  // compare panel-beside vs panel-below and keep whichever gives the bigger board (beside wins ties: less scrolling)
+  const side = Math.min(H - extraH, W - extraW - GAP - PANEL_W);
+  const under = Math.min(W - extraW, H - extraH - GAP - PANEL_H);
+  const below = under > side && side < minBoard;
+  const S = Math.max(240, below ? under : side);
+  layout.classList.toggle('below', below);
+  root.setProperty('--board', S + 'px'); root.setProperty('--bw', S + extraW + 'px');
+}
+
 /** Panel sub-navbar: one group of cards at a time. */
 function setTab(t) {
   S.tab = t; store.set('tab', t);
@@ -424,10 +463,45 @@ async function resetAll() {
   if ((S.moves.length || S.img || S.mode !== 'analysis') && !(await confirmDialog('Reset everything?', 'This clears the board, move history, scanned image and all settings back to their defaults.', 'Reset'))) return;
   resetState({ settings: true }); toast('Reset to defaults');
 }
-async function newGame() {
-  if (S.moves.length && !(await confirmDialog('Start a new game?', 'The current game will be cleared.', 'New game'))) return;
-  resetState({ settings: false }); toast('New game');
+// ---------- new game menu (panel sub-navbar) ----------
+const MODE_INFO = {
+  analysis: { label: 'Analyse', icon: 'i-search', fresh: 'New analysis board' },
+  pvp: { label: 'Player vs Player', icon: 'i-users', fresh: 'New two-player game' },
+  bot: { label: 'Play the bot', icon: 'i-bot', fresh: 'New game vs the bot' },
+  tutor: { label: 'Tutor lesson', icon: 'i-teacher', fresh: 'New tutor lesson' },
+  review: { label: 'Game review', icon: 'i-chart', fresh: 'New game review' },
+};
+const item = (m, text, sub) => `<button type="button" role="menuitem" data-new="${m}" class="ng-item" data-v="${m}"><svg class="ic"><use href="#${MODE_INFO[m].icon}"/></svg><span><b>${text}</b>${sub ? `<small>${sub}</small>` : ''}</span></button>`;
+function renderNewMenu() {
+  const others = Object.keys(MODE_INFO).filter(m => m !== S.mode);
+  $('#ng-menu').innerHTML = `<div class="ng-h">Same mode</div>${item(S.mode, MODE_INFO[S.mode].fresh, 'Keeps your current settings')}
+    <div class="ng-h">Or switch to</div>${others.map(m => item(m, MODE_INFO[m].label)).join('')}`;
 }
+function toggleNewMenu(open) {
+  const menu = $('#ng-menu'), btn = $('#btn-new'), show = open ?? menu.classList.contains('hidden');
+  if (show) renderNewMenu();
+  menu.classList.toggle('hidden', !show); btn.setAttribute('aria-expanded', String(show));
+  if (show) menu.querySelector('.ng-item')?.focus();
+}
+/** Start fresh in `mode` (the current one or another), asking first if a game is in progress. */
+async function startNew(mode) {
+  toggleNewMenu(false);
+  if (S.moves.length && !(await confirmDialog('Start a new game?', 'The current game will be cleared.', 'New game'))) return;
+  if (mode !== S.mode) setMode(mode);
+  if (mode === 'review') { cancelReview(); setTab('main'); refresh(); toast('Paste a game to review'); return; }
+  resetState({ settings: false }); setTab('main'); toast(MODE_INFO[mode].fresh);
+}
+function wireNewGame() {
+  $('#btn-new').addEventListener('click', e => { e.stopPropagation(); toggleNewMenu(); });
+  $('#ng-menu').addEventListener('click', e => { const b = e.target.closest('[data-new]'); if (b) startNew(b.dataset.new); });
+  document.addEventListener('click', e => { if (!e.target.closest('.ng')) toggleNewMenu(false); });
+  $('#ng-menu').addEventListener('keydown', e => {
+    const items = [...$('#ng-menu').querySelectorAll('.ng-item')], i = items.indexOf(document.activeElement);
+    if (e.key === 'Escape') { e.stopPropagation(); toggleNewMenu(false); $('#btn-new').focus(); }
+    else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); items[(i + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length].focus(); }
+  });
+}
+
 function takeBack() {
   if (!S.moves.length) return;
   botJob = null; botEngine?.stop();
@@ -613,6 +687,16 @@ function renderFeed() {
   const p = templateParts(e);
   const body = e.text ? esc(e.text) : e.status === 'llm' ? `${esc(p.text)}<br><span class="dots">The AI tutor is writing…</span>` : `${e.status === 'error' ? `<div class="err">${esc(e.err)}</div>` : ''}${esc(p.text)}`;
   el.innerHTML = lessonCard({ kicker, meta: esc(e.evalAfter || ''), title, cls: e.cls, chips: motifChips(e.motifs), body, tip: p.tip, footer: stats });
+  revealLesson(e.i + ':' + (e.text ? 'llm' : e.status));
+}
+/** When a new lesson appears, scroll the panel so the whole lesson card is visible (desktop only). */
+let lastLesson = '';
+function revealLesson(key) {
+  if (key === lastLesson) return;
+  lastLesson = key;
+  const card = $('#card-coach'), pane = card.closest('.pane');
+  if (!DESKTOP.matches || !pane || pane.hidden) return;
+  requestAnimationFrame(() => pane.scrollTo({ top: Math.max(0, pane.scrollTop + card.getBoundingClientRect().top - pane.getBoundingClientRect().top - 4), behavior: 'smooth' }));
 }
 
 // ---------- game review ----------
@@ -1171,6 +1255,8 @@ function init() {
   $('#think').addEventListener('change', e => store.set('think', e.target.value));
   $('#btn-help').addEventListener('click', () => $('#help').showModal());
   wireReview(); wireSettings(); wirePrefs(); applyPrefs(); wireExport();
+  addEventListener('resize', scheduleLayout); DESKTOP.addEventListener('change', scheduleLayout);
+  document.fonts?.ready.then(scheduleLayout);
   $('#subnav').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (b) setTab(b.dataset.tab); });
   $('#timeline').addEventListener('click', e => { const b = e.target.closest('[data-ply]'); if (b) goto(+b.dataset.ply); });
   setTab(['main', 'moves', 'position'].includes(store.get('tab', 'main')) ? store.get('tab', 'main') : 'main');
@@ -1180,7 +1266,7 @@ function init() {
   $('#btn-reset-all').addEventListener('click', resetAll);
   $('#btn-theme').addEventListener('click', () => { setTheme(isDark() ? 'light' : 'dark'); });
   paintTheme();
-  $('#btn-new').addEventListener('click', newGame);
+  wireNewGame();
   $('#btn-takeback').addEventListener('click', takeBack);
   $('#seg-time').addEventListener('click', async e => {
     const b = e.target.closest('button[data-v]'); if (!b || +b.dataset.v === S.time) return;

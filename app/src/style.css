@@ -557,7 +557,7 @@ html { scrollbar-gutter: stable; }
 .toast { background: var(--surface-2); color: var(--ink); border: 1px solid var(--border-strong); font: 600 12.5px/1.4 var(--mono); }
 
 /* =====================================================================
-   Type + pastel multicolour: Space Grotesk for UI, JetBrains Mono for labels,
+   Type + pastel multicolour: geometric sans for UI, JetBrains Mono for labels,
    translucent pastel tints with one hue per area. The board keeps its own font.
    ===================================================================== */
 :root {
@@ -634,3 +634,183 @@ button, select, input, textarea { font-family: inherit; }
 .acc > div:nth-child(1) { background: var(--blue-soft); border-color: var(--blue-line); }
 .acc > div:nth-child(2) { background: var(--violet-soft); border-color: var(--violet-line); }
 .tipbox { background: var(--hs, var(--inset)); border-color: var(--hl, var(--border-strong)); color: var(--h, var(--accent)); }
+
+/* =====================================================================
+   Slate bento: Outfit (geometric, bold), borderless tonal panels,
+   bigger type, players beside the board, 4-column bento on wide screens.
+   ===================================================================== */
+:root {
+  --sans: 'Outfit Variable', Inter, ui-sans-serif, -apple-system, 'Segoe UI', system-ui, sans-serif;
+  --board: calc(100vh - 200px);
+  --bw: calc(var(--board) + 188px);
+  --r: 14px; --r-sm: 9px;
+  --bg: #e9ecf2; --surface: #f7f8fb; --surface-2: #eceff5; --inset: #e3e7ef;
+}
+:root[data-theme="dark"] { --bg: #101218; --surface: #181b24; --surface-2: #20242f; --inset: #13161d; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #101218; --surface: #181b24; --surface-2: #20242f; --inset: #13161d; } }
+body { font-size: 15px; font-weight: 450; letter-spacing: 0; }
+
+/* borderless: panels and controls separate by tone, not lines */
+.card, .rail, .subnav, .status, .btn, .seg, .tipbox, .lesson-stats div, .acc > div, .graph, .prov, .drop,
+.lines li, .pill, .mchip, .chips label, .tchip, .set-sec, .note, .toast, dialog, .clock, .palette,
+#move-in, .fen-row input, .field input, .field select, .ex-text, #rv-pgn, .ctable, .side-tag { border-color: transparent !important; }
+.card-h { border-bottom: 0; }
+.callout { border-top-color: transparent; border-right-color: transparent; border-bottom-color: transparent; }
+.top { border-bottom: 0; }
+.btn { background: var(--surface-2); }
+.seg button.on, .seg button[aria-checked="true"] { box-shadow: none; background: var(--surface); }
+.drop { background: var(--inset); }
+.ctable { background: var(--surface-2); }
+.ctable td { border-top-color: var(--bg); }
+.ctable td:nth-child(2) { border-right-color: var(--bg); }
+
+/* bigger, bolder */
+.brand b { font-weight: 800; font-size: 23px; letter-spacing: .02em; }
+.card-h { padding: 14px 20px; min-height: 52px; }
+.card-b { padding: 20px; }
+.card h2, .kicker { font-size: 12px; }
+.lesson-title { font-size: 28px; font-weight: 750; letter-spacing: -.02em; }
+.callout { font-size: 16px; line-height: 1.65; padding: 16px 18px; }
+.tipbox { font-size: 13px; padding: 12px 14px; }
+.btn { font-size: 12px; padding: 9px 14px; }
+.btn.sm { padding: 6px 11px; }
+.primary { font-size: 13px; padding: 15px 16px; }
+.rail { gap: 8px; padding: 10px; }
+.rail button { padding: 13px 2px 11px; font-size: 10px; }
+.rail .ic { width: 22px; height: 22px; }
+.subnav button { padding: 10px 6px; font-size: 11.5px; }
+.tchip { font-size: 13.5px; padding: 8px 14px; }
+.turn { font-size: 15px; }
+.lines li .pv b, .lines li .ev { font-size: 15px; }
+.acc .n { font-size: 30px; }
+.lesson-stats b { font-size: 21px; }
+
+/* players beside the board instead of above/below it */
+.evalbar { margin: 0; }
+.board-stack { flex: 1 1 auto; min-width: 0; max-width: var(--board); }
+.side-players { width: 116px; flex: none; display: flex; flex-direction: column; justify-content: space-between; gap: 12px; }
+.side-players .player { height: auto; display: grid; grid-template-columns: 14px minmax(0, 1fr); column-gap: 9px; row-gap: 3px; align-items: center; padding: 11px 12px; border-radius: var(--r-sm); background: var(--surface-2); }
+.side-players .player b { grid-column: 2; font-size: 15px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.side-players .player .sub { grid-column: 2; font-size: 12px; }
+.side-players .player .think { grid-column: 1 / -1; margin: 2px 0 0; }
+.side-players .player .clock { grid-column: 1 / -1; margin: 6px 0 0; min-width: 0; width: 100%; font-size: 18px; }
+.side-players .player.active { background: var(--accent-soft); }
+.side-players .player.active b { color: var(--accent); }
+.under { border-top: 0; }
+
+
+/* phones: players sit in a row under the board */
+@media (max-width: 980px) {
+  .top, .layout { grid-template-columns: minmax(0, 1fr); }
+  .top { grid-template-columns: minmax(0, 1fr) auto; }
+  .board-wrap { flex-wrap: wrap; }
+  .board-stack { max-width: none; }
+  .side-players { width: 100%; flex-direction: row; order: 3; }
+  .side-players .player { flex: 1; }
+}
+
+/* desktop: board size and placement come from the adaptive layout in main.js (--board, --bw, .below) */
+.side-col { display: contents; }
+@media (min-width: 981px) {
+  .top { grid-template-columns: var(--rail) minmax(0, 1fr) auto; max-width: none; }
+  .top .brand { grid-column: 1 / 3; }
+  .layout { grid-template-columns: var(--rail) var(--bw, 60vw) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); grid-template-areas: "rail board panel";
+            max-width: none; height: calc(100vh - 78px); overflow: hidden; padding-bottom: 14px; }
+  .layout.below { grid-template-columns: var(--rail) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); grid-template-areas: "rail board" "rail panel"; }
+  .rail { grid-area: rail; align-self: start; }
+  .board-col { grid-area: board; position: static; min-width: 0; }
+  .board-card { width: max-content; max-width: 100%; }
+  .board-stack { flex: none; width: var(--board, 60vh); max-width: none; }
+  /* the tabbed panel: sub-navbar on top, one view below it, cards in a responsive grid, vertical scroll only */
+  .panel { grid-area: panel; display: flex; flex-direction: column; gap: 14px; min-height: 0; height: 100%; }
+  .subnav { display: flex; position: static; flex: none; }
+  .pane:not([hidden]) { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); grid-auto-rows: max-content; gap: 16px; align-content: start; align-items: start;
+                        flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding-bottom: 4px; }
+  .pane .card { margin: 0; }
+  .foot { display: none; }
+}
+
+/* mode bar lives in the top header (horizontal), so the board gets the full width below it */
+.top { display: flex; align-items: center; gap: 18px; }
+.top .brand { flex: none; }
+.top .top-r { margin-left: 0; }
+.top .rail { position: static; flex-direction: row; gap: 4px; padding: 4px; margin: 0 auto 0 8px; overflow-x: auto; }
+.top .rail button { flex-direction: row; gap: 8px; padding: 9px 14px; font-size: 11px; white-space: nowrap; }
+.top .rail .ic { width: 18px; height: 18px; }
+@media (min-width: 981px) {
+  .layout { grid-template-columns: var(--bw, 60vw) minmax(0, 1fr); grid-template-areas: "board panel"; }
+  .layout.below { grid-template-columns: minmax(0, 1fr); grid-template-areas: "board" "panel"; }
+}
+@media (max-width: 1180px) { .top .rail button span { display: none; } .top .rail button { padding: 9px 11px; } }
+@media (max-width: 980px) {
+  .top { flex-wrap: wrap; }
+  .top .rail { order: 3; width: 100%; margin: 0; }
+  .top .rail button { flex: 1 0 auto; justify-content: center; }
+  .top .rail button span { display: inline; }
+}
+
+/* top mode bar: same panel + pill language as the panel tabs, with a bold full-colour pop on the active mode */
+.top { margin-bottom: 0; }
+.top .rail { background: var(--surface); padding: 4px; gap: 4px; border-radius: var(--r); }
+.top .rail button { color: var(--muted); font-weight: 600; border: 1px solid transparent; border-radius: var(--r-sm); transition: color .15s, background .15s; }
+.top .rail button .ic { opacity: .65; transition: opacity .15s, transform .15s; }
+.top .rail button:hover { background: var(--hs); color: var(--h); }
+.top .rail button:hover .ic { opacity: 1; }
+.top .rail button[aria-checked="true"] { background: var(--hs); border-color: var(--hl); color: var(--h); font-weight: 800; box-shadow: none; }
+.top .rail button[aria-checked="true"] .ic { opacity: 1; stroke-width: 2.6; transform: scale(1.12); }
+
+/* lesson-first flow: in Tutor and Review the focused move card leads the panel and spans its full width */
+[data-mode="tutor"] #card-coach { order: -3; grid-column: 1 / -1; }
+[data-mode="tutor"] #card-play { order: -2; }
+[data-mode="review"] #card-rmove { order: -3; grid-column: 1 / -1; }
+[data-mode="review"] #card-review { order: -2; }
+
+/* phones: logo + compact buttons on one row, the mode bar under it */
+@media (max-width: 980px) {
+  .top { flex-wrap: wrap; gap: 10px; padding: 10px 12px; }
+  .top .brand { flex: 1; } .top .brand b { font-size: 19px; }
+  .top .top-r { gap: 6px; }
+  .top-r .btn, .top-r .btn.icon, .top .status { height: 32px; }
+  .top-r .btn.icon, .top-r .btn:not(.icon) { width: 32px; padding: 0; }
+  .top-r .btn:not(.icon) span, .top .status span { display: none; }
+  .top .rail { order: 3; width: 100%; margin: 0; justify-content: space-between; }
+}
+@media (max-width: 480px) {
+  .top .rail button { flex: 1 1 0; flex-direction: column; gap: 4px; padding: 7px 2px; font-size: 9.5px; border-radius: var(--r-sm); }
+}
+
+/* settings card always sits last in the main view, in every mode */
+#card-game { order: 10; }
+
+/* new-game button (header, beside Reset) + themed menu */
+.ng { position: relative; flex: none; display: flex; }
+.ng-menu { position: absolute; right: 0; top: calc(100% + 8px); z-index: 30; width: 272px; padding: 6px; background: var(--surface); border-radius: var(--r);
+           box-shadow: 0 18px 40px -12px rgba(0, 0, 0, .45), 0 0 0 1px var(--border-strong); display: grid; gap: 2px; }
+.ng-h { font: 700 10px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); padding: 10px 10px 6px; }
+.ng .ng-item { flex: none; width: 100%; font: 500 14px/1.3 var(--sans); text-transform: none; letter-spacing: 0; display: flex; align-items: center; gap: 11px; text-align: left; padding: 9px 10px; border: 0; border-radius: var(--r-sm); background: transparent; color: var(--ink); }
+.ng .ng-item .ic { width: 18px; height: 18px; color: var(--h); flex: none; }
+.ng .ng-item span { display: grid; gap: 2px; }
+.ng .ng-item b { text-transform: none; letter-spacing: 0; font-family: var(--sans); font-weight: 700; font-size: 14px; }
+.ng .ng-item small { color: var(--muted); font-size: 12px; }
+.ng .ng-item:hover, .ng .ng-item:focus-visible { background: var(--hs); outline: none; }
+.ng .ng-item:hover b, .ng .ng-item:focus-visible b { color: var(--h); }
+.ng .ng-item[data-v="analysis"] { --h: var(--blue);   --hs: var(--blue-soft); }
+.ng .ng-item[data-v="pvp"]      { --h: var(--sage);   --hs: var(--sage-soft); }
+.ng .ng-item[data-v="bot"]      { --h: var(--amber);  --hs: var(--amber-soft); }
+.ng .ng-item[data-v="tutor"]    { --h: var(--violet); --hs: var(--violet-soft); }
+.ng .ng-item[data-v="review"]   { --h: var(--rose);   --hs: var(--rose-soft); }
+
+/* players column: hidden by default (the board already shows who is White and Black); shown with the clocks in timed games */
+.side-players { display: none; }
+body.timed .side-players { display: flex; }
+
+/* checkmate pop over the board (3 s) */
+.mate-pop { position: absolute; inset: 0; z-index: 6; display: grid; place-items: center; pointer-events: none; animation: mate-dim 3s ease forwards; }
+.mate-pop .mp { display: grid; justify-items: center; gap: 6px; padding: 20px 34px 18px; border-radius: 16px; background: rgba(16, 18, 26, .9); color: #f4f5fa;
+                box-shadow: 0 24px 60px -16px rgba(0, 0, 0, .6); animation: mate-pop 3s cubic-bezier(.2, .9, .3, 1.25) forwards; }
+.mate-pop .mp-k { font: 800 30px/1 var(--mono); color: #d494a6; animation: mate-beat .7s ease .35s 2; }
+.mate-pop b { font: 800 38px/1 var(--sans); letter-spacing: .01em; }
+.mate-pop .mp-s { font: 700 12.5px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: #e0bd7d; }
+@keyframes mate-pop { 0% { opacity: 0; transform: scale(.55); } 12% { opacity: 1; transform: scale(1.08); } 20% { transform: scale(1); } 82% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(.94); } }
+@keyframes mate-dim { 0% { background: rgba(16, 18, 26, 0); } 12% { background: rgba(16, 18, 26, .28); } 82% { background: rgba(16, 18, 26, .28); } 100% { background: rgba(16, 18, 26, 0); } }
+@keyframes mate-beat { 50% { transform: scale(1.3); } }
