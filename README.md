@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/banner.svg" alt="augur" width="100%"></p>
+
 # augur
 
 paste a screenshot of a chessboard → the position is read locally in under a second → keep playing it move by move for either side → ask stockfish for the top 3 moves whenever you want.
@@ -10,6 +12,8 @@ screenshot ──► board detector ──► 64 tiles ──► tiny CNN (≈40
                                                                                   ▼
                                                               stockfish 19 lite (wasm, 1.8 MB, MultiPV 3)
 ```
+
+<p align="center"><img src="docs/flow.svg" alt="pipeline" width="100%"></p>
 
 ## what it does
 
