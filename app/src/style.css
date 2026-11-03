@@ -814,3 +814,11 @@ body.timed .side-players { display: flex; }
 @keyframes mate-pop { 0% { opacity: 0; transform: scale(.55); } 12% { opacity: 1; transform: scale(1.08); } 20% { transform: scale(1); } 82% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(.94); } }
 @keyframes mate-dim { 0% { background: rgba(16, 18, 26, 0); } 12% { background: rgba(16, 18, 26, .28); } 82% { background: rgba(16, 18, 26, .28); } 100% { background: rgba(16, 18, 26, 0); } }
 @keyframes mate-beat { 50% { transform: scale(1.3); } }
+
+/* review: the move timeline becomes a vertical, scrollable two-column move list (White | Black) */
+.timeline { position: relative; }
+.tchip-gap { display: none; }
+[data-mode="review"] .timeline { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; max-height: 320px; overflow-x: hidden; overflow-y: auto; padding: 2px 4px 2px 2px; scroll-behavior: smooth; }
+[data-mode="review"] .timeline .tchip { width: 100%; text-align: left; }
+[data-mode="review"] .tchip-gap { display: block; }
+[data-mode="review"] .timeline .empty { grid-column: 1 / -1; }

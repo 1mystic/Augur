@@ -415,12 +415,14 @@ function renderTimeline() {
   const el = $('#timeline');
   $('#tl-count').textContent = S.moves.length ? `${S.ply} / ${S.moves.length}` : '';
   if (!S.moves.length) { el.innerHTML = '<span class="empty">No moves yet.</span>'; return; }
-  el.innerHTML = S.moves.map((mv, i) => {
+  // a game that starts with Black leaves the first White cell empty, so the review's two-column list stays aligned
+  el.innerHTML = (S.base.split(' ')[1] === 'b' ? '<span class="tchip-gap"></span>' : '') + S.moves.map((mv, i) => {
     const cls = clsOf(i), c = CLASSES[cls];
     return `<button type="button" class="tchip ${c ? 'graded' : ''} ${i + 1 === S.ply ? 'cur' : ''} ${i + 1 > S.ply ? 'future' : ''}" data-ply="${i + 1}"${c ? ` style="--c:${c.color}" title="${c.label}"` : ''}>${esc(moveTitle(mv.san, i, S.base, cls))}</button>`;
   }).join('');
   const cur = el.querySelector('.cur');
   el.scrollLeft = cur ? cur.offsetLeft - el.clientWidth / 2 + cur.offsetWidth / 2 : el.scrollWidth;
+  el.scrollTop = cur ? cur.offsetTop - el.clientHeight / 2 + cur.offsetHeight / 2 : el.scrollHeight;   // vertical list in Review
 }
 function setMode(m) {
   if (m === S.mode) return;
