@@ -45,13 +45,13 @@ export async function ask({ system, user, maxTokens = 450, signal }, cfg = loadL
     }
   } catch (e) {
     if (e.name === 'AbortError') throw e;
-    throw new Error('Could not reach the provider — check your connection (and the base URL for custom endpoints).');
+    throw new Error('Could not reach the provider, check your connection (and the base URL for custom endpoints).');
   }
   let data = null; try { data = await res.json(); } catch { /* non-JSON */ }
   if (!res.ok) {
     const msg = data?.error?.message || data?.message || res.statusText;
     if (res.status === 401 || res.status === 403) throw new Error('The provider rejected your API key. ' + (msg || ''));
-    if (res.status === 429) throw new Error('Rate limited by the provider — try again in a moment.');
+    if (res.status === 429) throw new Error('Rate limited by the provider, try again in a moment.');
     throw new Error(`Provider error ${res.status}: ${msg || 'unknown'}`);
   }
   const text = r.kind === 'anthropic' ? data?.content?.filter(b => b.type === 'text').map(b => b.text).join('') : data?.choices?.[0]?.message?.content;

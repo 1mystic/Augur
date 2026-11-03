@@ -111,7 +111,8 @@ export class Board {
     const moves = this.state.legal(from).filter(m => m.to === to);
     this.sel = null;
     if (!moves.length) { this.render(); return; }
-    if (moves.length > 1 || moves[0].promotion) this._promo(from, to, moves[0].color);
+    if ((moves.length > 1 || moves[0].promotion) && this.h.autoQueen?.()) this.h.onMove(from, to, 'q');
+    else if (moves.length > 1 || moves[0].promotion) this._promo(from, to, moves[0].color);
     else this.h.onMove(from, to);
   }
   _promo(from, to, color) {

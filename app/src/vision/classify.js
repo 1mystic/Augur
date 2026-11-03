@@ -1,5 +1,5 @@
 const mkCanvas = (w, h) => (typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(w, h) : Object.assign(document.createElement('canvas'), { width: w, height: h }));
-// Tiny CNN (3x conv3x3+relu+maxpool, 2 dense) — pure JS forward pass.
+// Tiny CNN (3x conv3x3+relu+maxpool, 2 dense), pure JS forward pass.
 // Weights are trained offline (see /train) and shipped as a ~400KB float32 blob.
 export const CLASSES = ['.', 'P', 'N', 'B', 'R', 'Q', 'K', 'p', 'n', 'b', 'r', 'q', 'k'];
 const T = 32;

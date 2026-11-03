@@ -4,7 +4,7 @@ import { CLASSES, CLASS_ORDER } from './coach.js';
 export const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 export const badge = cls => (CLASSES[cls] ? `<span class="badge" style="background:${CLASSES[cls].color}" title="${CLASSES[cls].label}">${CLASSES[cls].glyph}</span>` : '');
 
-/** Eval graph: White's winning chances over the game. `ws` has N+1 values (0..100) — one per position. */
+/** Eval graph: White's winning chances over the game. `ws` has N+1 values (0..100), one per position. */
 export function buildGraph(ws, ply) {
   const W = 600, H = 86, n = Math.max(1, ws.length - 1);
   const X = i => (i / n) * W, Y = v => H - (v / 100) * H;
@@ -46,7 +46,7 @@ export function buildSummary(R, ply) {
 export function buildMoveCard({ row, ply, san, side, bestSan, evalAfter, evalBest, text, busy, err, canExplain, opening }) {
   if (!row) {
     return `<div class="card-h"><h2>Move analysis</h2></div><div class="card-b"><div class="rm-top"><b>${ply === 0 ? 'Starting position' : 'Final position'}</b></div>
-      <p class="muted small" style="margin:0">${opening ? esc(opening) + ' — ' : ''}Step through the game with ← → or click a point on the graph.</p></div>`;
+      <p class="muted small" style="margin:0">${opening ? esc(opening) + ' · ' : ''}Step through the game with ← → or click a point on the graph.</p></div>`;
   }
   const c = CLASSES[row.cls];
   const verdict = {

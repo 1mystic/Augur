@@ -15,6 +15,8 @@ const RAW = ['#6f86ff', '#4fbf8f', '#f08a6c'];
 const store = { get(k, d) { try { const v = localStorage.getItem('augur:' + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
   set(k, v) { try { localStorage.setItem('augur:' + k, JSON.stringify(v)); } catch { /* private mode */ } } };
 
+const PREF_DEFAULTS = { lines: 3, coords: true, dots: true, evalbar: true, anim: true, autoq: false, who: 'all', level: 'intermediate' };
+const P = { ...PREF_DEFAULTS, ...store.get('prefs', {}) };
 const S = {
   img: null, box: null, grid: null,
   orient: 'w', turn: 'w', castle: 'KQkq', placement: START,
@@ -24,10 +26,10 @@ const S = {
   bot: { level: store.get('level', 'intermediate'), human: store.get('human', 'w') },
 };
 const MODES = {
-  analysis: 'Scan a position, explore lines and ask Stockfish for the top 3 moves.',
+  get analysis() { return `Scan a position, explore lines and ask Stockfish for ${P.lines === 1 ? 'the best move' : `the top ${P.lines} moves`}.`; },
   pvp: 'Two players, one board. Moves alternate; Stockfish can give a single hint if you allow it.',
   bot: 'Play against Stockfish. Pick a difficulty and your colour.',
-  tutor: 'Play the bot while a tutor explains every move in plain English — yours and the bot\'s.',
+  tutor: 'Play the bot while a tutor explains every move in plain English, yours and the bot\'s.',
   review: 'Paste a finished game (PGN from chess.com, lichess…) for a full move-by-move review.',
 };
 // per-mode extras
@@ -35,7 +37,7 @@ const T = { entries: [], gen: 0 };                                   // tutor fe
 const R = { status: 'idle', run: 0, rows: [], evals: [], ws: [], counts: { w: {}, b: {} }, acc: { w: 0, b: 0 }, headers: {}, opening: null, speed: store.get('speed', '600') };
 const vsBot = () => S.mode === 'bot' || S.mode === 'tutor';
 const LEVELS = {
-  easy: { label: 'Easy', desc: 'Makes plenty of mistakes — good for learning (~1000).', opts: { UCI_LimitStrength: false, 'Skill Level': 1 }, go: 'movetime 200' },
+  easy: { label: 'Easy', desc: 'Makes plenty of mistakes, good for learning (~1000).', opts: { UCI_LimitStrength: false, 'Skill Level': 1 }, go: 'movetime 200' },
   intermediate: { label: 'Intermediate', desc: 'Solid club player, still beatable (~1700).', opts: { 'Skill Level': 20, UCI_LimitStrength: true, UCI_Elo: 1700 }, go: 'movetime 500' },
   expert: { label: 'Expert', desc: 'Full-strength Stockfish. Good luck.', opts: { UCI_LimitStrength: false, 'Skill Level': 20 }, go: 'movetime 1200' },
 };
@@ -67,7 +69,7 @@ function checkPosition(fen) {
   if (Object.entries(map).some(([sq, p]) => 'Pp'.includes(p) && '18'.includes(sq[1]))) return 'Pawns on the first/last rank.';
   try { new Chess(fen); } catch (e) { return String(e.message || e); }
   const parts = fen.split(' '); parts[1] = parts[1] === 'w' ? 'b' : 'w'; parts[3] = '-';
-  try { if (new Chess(parts.join(' ')).inCheck()) return `${parts[1] === 'w' ? 'White' : 'Black'} is in check but it's not their move — flip "To move"?`; } catch { /* ignore */ }
+  try { if (new Chess(parts.join(' ')).inCheck()) return `${parts[1] === 'w' ? 'White' : 'Black'} is in check but it's not their move, flip "To move"?`; } catch { /* ignore */ }
   return null;
 }
 
@@ -105,7 +107,7 @@ function play(from, to, promotion, byBot = false) {
 function goto(ply) { S.ply = Math.max(0, Math.min(S.moves.length, ply)); S.lines = []; refresh(); if (autoOn()) analyse(); }
 const autoOn = () => S.mode === 'analysis' && $('#auto').checked;
 /** Engine lines that the current mode lets the player see. */
-const shown = () => (S.mode === 'analysis' ? S.lines.slice(0, 3) : S.mode === 'pvp' && S.hints ? S.lines.slice(0, 1) : []);
+const shown = () => (S.mode === 'analysis' ? S.lines.slice(0, P.lines) : S.mode === 'pvp' && S.hints ? S.lines.slice(0, 1) : []);
 const humanCanMove = () => S.mode === 'review' ? false : !vsBot() || curFen().split(' ')[1] === S.bot.human;
 
 // ---------- rendering ----------
@@ -127,8 +129,8 @@ function refresh() {
   const t = $('#turn'); t.classList.toggle('b', turn === 'b');
   const winner = turn === 'w' ? 'Black' : 'White';
   let status = `${turn === 'w' ? 'White' : 'Black'} to move`;
-  if (g && g.isCheckmate()) status = vsBot() ? (winner === (S.bot.human === 'w' ? 'White' : 'Black') ? 'Checkmate — you win!' : 'Checkmate — the bot wins') : `Checkmate — ${winner} wins`;
-  else if (g && g.isStalemate()) status = 'Stalemate — draw';
+  if (g && g.isCheckmate()) status = vsBot() ? (winner === (S.bot.human === 'w' ? 'White' : 'Black') ? 'Checkmate, you win!' : 'Checkmate, the bot wins') : `Checkmate, ${winner} wins`;
+  else if (g && g.isStalemate()) status = 'Stalemate, draw';
   else if (g && g.isDraw()) status = 'Draw';
   else if (!S.valid) status = 'Position needs fixing';
   else if (S.mode === 'review') status = S.ply ? `After move ${Math.ceil(S.ply / 2)}${S.ply % 2 ? '' : '…'}` : 'Starting position';
@@ -185,7 +187,7 @@ function renderLines() {
     setEval(ev ? { w: R.ws[S.ply] / 100, txt: fmtWhite(ev, curFen().split(' ')[1]) } : null); return;
   }
   const lines = shown();
-  if (!lines.length) { el.innerHTML = `<li class="empty">${!S.valid ? 'Fix the position first.' : S.mode === 'pvp' ? 'Press Hint when you are stuck.' : 'Ask for suggestions any time — for whichever side is to move.'}</li>`; setEval(null); return; }
+  if (!lines.length) { el.innerHTML = `<li class="empty">${!S.valid ? 'Fix the position first.' : S.mode === 'pvp' ? 'Press Hint when you are stuck.' : 'Ask for suggestions any time, for whichever side is to move.'}</li>`; setEval(null); return; }
   el.innerHTML = lines.map((l, i) => {
     const g = new Chess(fen); const sans = [];
     for (const u of l.pv.slice(0, 7)) { try { sans.push(g.move({ from: u.slice(0, 2), to: u.slice(2, 4), promotion: u[4] }).san); } catch { break; } }
@@ -207,7 +209,7 @@ function analyse() {
   if (!S.valid || !engine || S.mode === 'bot' || (S.mode === 'pvp' && !S.hints)) return;
   const g = game(); if (g.isGameOver()) { S.lines = []; renderLines(); return; }
   const fen = curFen(), btn = $('#btn-suggest');
-  const label = $('#suggest-label'), idle = S.mode === 'pvp' ? 'Hint' : 'Suggest top 3';
+  const label = $('#suggest-label'), idle = suggestLabel();
   btn.disabled = true; label.textContent = 'Thinking…';
   engine.analyse(fen, S.mode === 'pvp' ? 1000 : +$('#think').value, (lines, done) => {
     if (curFen() !== fen) return;
@@ -217,7 +219,8 @@ function analyse() {
 }
 function playLine(i) { const l = shown()[i]; if (l) { const u = l.pv[0]; play(u.slice(0, 2), u.slice(2, 4), u[4]); } }
 
-function stopEngine() { engine?.stop(); const b = $('#btn-suggest'); if (b) { b.disabled = false; $('#suggest-label').textContent = S.mode === 'pvp' ? 'Hint' : 'Suggest top 3'; } }
+const suggestLabel = () => (S.mode === 'pvp' ? 'Show hint' : P.lines === 1 ? 'Suggest best move' : `Suggest top ${P.lines}`);
+function stopEngine() { engine?.stop(); const b = $('#btn-suggest'); if (b) { b.disabled = false; $('#suggest-label').textContent = suggestLabel(); } }
 
 // ---------- bot ----------
 let botEngine = null, botJob = null;
@@ -265,7 +268,7 @@ function renderMode(turn) {
   $('#card-engine').classList.toggle('hidden', !eng);
   $('#engine-title').textContent = S.mode === 'pvp' ? 'Hint' : 'Best moves';
   $('#eng-ctl').classList.toggle('hidden', S.mode !== 'analysis');
-  if (!$('#btn-suggest').disabled) $('#suggest-label').textContent = S.mode === 'pvp' ? 'Show hint' : 'Suggest top 3';
+  if (!$('#btn-suggest').disabled) $('#suggest-label').textContent = suggestLabel();
   // player bars: bottom of the screen = S.orient
   const bot = vsBot();
   for (const [el, side] of [[$('#pl-top'), S.orient === 'w' ? 'b' : 'w'], [$('#pl-bot'), S.orient]]) {
@@ -314,9 +317,10 @@ function resetState({ settings }) {
   clearScan();
   if (settings) {
     S.mode = 'analysis'; S.hints = false; S.bot = { level: 'intermediate', human: 'w' };
+    Object.assign(P, PREF_DEFAULTS); applyPrefs(); engine?.setOptions({ MultiPV: P.lines });
     $('#auto').checked = false; $('#think').value = '1500';
     delete document.documentElement.dataset.theme; $('#btn-theme use').setAttribute('href', matchMedia('(prefers-color-scheme: dark)').matches ? '#i-sun' : '#i-moon');
-    for (const k of ['mode', 'hints', 'level', 'human', 'orient', 'auto', 'think', 'theme', 'speed']) try { localStorage.removeItem('augur:' + k); } catch { /* ignore */ }
+    for (const k of ['mode', 'hints', 'level', 'human', 'orient', 'auto', 'think', 'theme', 'speed', 'prefs']) try { localStorage.removeItem('augur:' + k); } catch { /* ignore */ }
   }
   Object.assign(S, { orient: vsBot() ? S.bot.human : 'w', turn: 'w', castle: 'KQkq', placement: START, edit: false, tool: null, lines: [], uncertain: new Set(), endShown: null });
   rebuildBase();
@@ -380,9 +384,11 @@ function tutorPrompt(e) {
     e.bestSan ? `Stockfish's preferred move was ${e.bestSan}${e.pv?.length ? ` (line: ${e.pv.join(' ')})` : ''}.` : '',
     alts.length ? `Other good options: ${alts.join(', ')}.` : '',
     opening ? `Opening: ${opening}.` : '',
+    `The student is ${LEVEL_TXT[P.level]}.`,
     'Explain this move to the student.',
   ].filter(Boolean).join('\n');
 }
+const LEVEL_TXT = { beginner: 'a beginner: avoid jargon and explain the basic idea', intermediate: 'a club player', advanced: 'an advanced player: be concise and concrete' };
 const ENGINE_BLURB = { brilliant: 'A brilliant sacrifice.', great: 'The only strong move here.', best: 'The engine\'s top choice.', excellent: 'Nearly as good as the best move.', good: 'A reasonable move.', book: 'A well-known opening move.', inaccuracy: 'Slightly weakens your position.', mistake: 'A real slip.', miss: 'Gave away a chance to take advantage.', blunder: 'A serious error.' };
 const clsOf = i => (S.mode === 'tutor' ? T.entries[i]?.cls : S.mode === 'review' && R.status === 'done' ? R.rows[i]?.cls : null);
 function plyBadge() {
@@ -406,7 +412,7 @@ function coachMove(i) {
     const j = judge({ before, after, uci: mv.from + mv.to + (mv.promotion || ''), fenBefore, fenAfter, mover: side, prevCls: T.entries[i - 1]?.cls, book: S.base === START_FEN && inBook(sans, i + 1) });
     Object.assign(entry, j, { before, after, sans, bestSan: before.best ? uciToSan(fenBefore, before.best) : null, pv: pvToSan(fenBefore, before.lines[0]?.pv), evalAfter: fmtWhite(after, fenAfter.split(' ')[1]), status: 'done' });
     refresh();
-    if (!llmReady()) return;
+    if (!llmReady() || (P.who === 'mine' && !human)) return;
     entry.status = 'llm'; renderFeed();
     try { entry.text = await ask({ system: TUTOR_SYSTEM, user: tutorPrompt(entry) }); entry.status = 'done'; }
     catch (e) { if (e.name === 'AbortError') return; entry.status = 'error'; entry.err = e.message; }
@@ -425,7 +431,7 @@ function renderFeed() {
   note.classList.toggle('hidden', ok);
   if (!ok) note.innerHTML = 'Showing engine feedback only. <button class="linkish" data-open-settings type="button">Add an API key</button> for plain-English explanations of every move.';
   const items = T.entries.filter(Boolean);
-  el.innerHTML = items.length ? items.slice().reverse().map(feedItem).join('') : '<div class="empty">Make a move — the tutor will explain it here.</div>';
+  el.innerHTML = items.length ? items.slice().reverse().map(feedItem).join('') : '<div class="empty">Make a move and the tutor will explain it here.</div>';
 }
 
 // ---------- game review ----------
@@ -439,7 +445,7 @@ function tokenise(text) {
 function parseGame(raw) {
   let text = raw.trim();
   if (!text) throw new Error('Paste a game first.');
-  if (/^https?:\/\/\S+$/i.test(text)) throw new Error('That is a link — paste the PGN instead (chess.com: Share → PGN → copy).');
+  if (/^https?:\/\/\S+$/i.test(text)) throw new Error('That is a link, paste the PGN instead (chess.com: Share → PGN → copy).');
   text = text.split(/\r?\n\s*\r?\n(?=\[Event )/)[0];   // multi-game files: first game
   try {
     const g = new Chess(); g.loadPgn(text);
@@ -459,7 +465,7 @@ function parseGame(raw) {
 }
 function cancelReview() { R.run++; R.status = 'idle'; }
 async function startReview(game) {
-  if (game.moves.length < 2) throw new Error('That game has fewer than 2 moves — nothing to review.');
+  if (game.moves.length < 2) throw new Error('That game has fewer than 2 moves, nothing to review.');
   const run = ++R.run, ms = +R.speed;
   Object.assign(S, { base: game.startFen, moves: game.moves, ply: 0, valid: true, edit: false, lines: [], uncertain: new Set() });
   const f = game.startFen.split(' '); Object.assign(S, { placement: f[0], turn: f[1], castle: f[2] === '-' ? '' : f[2] });
@@ -473,7 +479,7 @@ async function startReview(game) {
   }
   computeReview(game, fens, evals);
   R.status = 'done'; S.ply = 0; refresh();
-  toast(game.partial ? 'Review ready — stopped at the first move it could not read' : 'Review ready', 3000);
+  toast(game.partial ? 'Review ready, stopped at the first move it could not read' : 'Review ready', 3000);
 }
 function computeReview(game, fens, evals) {
   const N = game.moves.length, rows = [], standard = game.startFen === START_FEN;
@@ -578,6 +584,45 @@ function enhanceSelect(sel, { small = false } = {}) {
   paint();
 }
 
+// ---------- preferences ----------
+const isDark = () => (document.documentElement.dataset.theme ? document.documentElement.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches);
+function paintTheme() { $('#btn-theme use').setAttribute('href', isDark() ? '#i-sun' : '#i-moon'); }
+function setTheme(t) {   // 'light' | 'dark' | 'system'
+  if (t === 'system') { delete document.documentElement.dataset.theme; try { localStorage.removeItem('augur:theme'); } catch { /* ignore */ } }
+  else { document.documentElement.dataset.theme = t; store.set('theme', t); }
+  paintTheme(); syncPrefsUI();
+}
+function applyPrefs() {
+  const c = document.body.classList;
+  c.toggle('pref-nocoords', !P.coords); c.toggle('pref-nodots', !P.dots); c.toggle('pref-noeval', !P.evalbar); c.toggle('pref-noanim', !P.anim);
+  $('#suggest-label') && !$('#btn-suggest').disabled && ($('#suggest-label').textContent = suggestLabel());
+}
+function setPref(k, v) {
+  P[k] = v; store.set('prefs', P); applyPrefs();
+  if (k === 'lines') { S.lines = []; stopEngine(); engine?.setOptions({ MultiPV: v }); refresh(); }
+}
+function syncPrefsUI() {
+  const seg = (sel, v) => document.querySelectorAll(sel + ' button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === String(v))));
+  seg('#set-theme', store.get('theme', 'system')); seg('#set-lines', P.lines); seg('#set-who', P.who); seg('#set-level', P.level); seg('#set-think', $('#think').value);
+  for (const [id, k] of [['coords', 'coords'], ['dots', 'dots'], ['evalbar', 'evalbar'], ['anim', 'anim'], ['autoq', 'autoq']]) $('#set-' + id).checked = P[k];
+  $('#set-auto').checked = $('#auto').checked;
+}
+function wirePrefs() {
+  const on = (id, fn) => $(id).addEventListener('click', e => { const b = e.target.closest('button[data-v]'); if (b) { fn(b.dataset.v); syncPrefsUI(); } });
+  on('#set-theme', setTheme);
+  on('#set-lines', v => setPref('lines', +v));
+  on('#set-who', v => setPref('who', v));
+  on('#set-level', v => setPref('level', v));
+  on('#set-think', v => { $('#think').value = v; store.set('think', v); });
+  for (const k of ['coords', 'dots', 'evalbar', 'anim', 'autoq']) $('#set-' + k).addEventListener('change', e => setPref(k, e.target.checked));
+  $('#set-auto').addEventListener('change', e => { $('#auto').checked = e.target.checked; $('#auto').dispatchEvent(new Event('change')); });
+  $('#btn-prefs-reset').addEventListener('click', () => {
+    Object.assign(P, PREF_DEFAULTS); try { localStorage.removeItem('augur:prefs'); } catch { /* ignore */ }
+    $('#think').value = '1500'; store.set('think', '1500'); $('#auto').checked = false; store.set('auto', false);
+    setTheme('system'); setPref('lines', 3); applyPrefs(); syncPrefsUI(); toast('Settings restored to defaults');
+  });
+}
+
 // ---------- settings (AI tutor key) ----------
 function syncSettingsForm() {
   const id = $('#llm-provider').value, p = PROVIDERS[id];
@@ -591,7 +636,7 @@ function openSettings() {
   const c = loadLLM();
   $('#llm-provider').value = c.provider; $('#llm-key').value = c.key; $('#llm-model').value = c.model; $('#llm-base').value = c.base;
   $('#llm-key').type = 'password'; $('#btn-key-show').textContent = 'Show';
-  syncSettingsForm(); setLlmStatus(llmReady(c) ? 'A key is saved in this browser.' : ''); $('#settings').showModal();
+  syncSettingsForm(); syncPrefsUI(); setLlmStatus(llmReady(c) ? 'A key is saved in this browser.' : ''); $('#settings').showModal();
 }
 function wireSettings() {
   $('#llm-provider').innerHTML = Object.entries(PROVIDERS).map(([k, p]) => `<option value="${k}">${p.label}</option>`).join('');
@@ -605,7 +650,7 @@ function wireSettings() {
   $('#btn-llm-test').addEventListener('click', async () => {
     const cfg = settingsForm(); if (!llmReady(cfg)) { setLlmStatus(cfg.provider === 'custom' ? 'Enter a model name first.' : 'Enter an API key first.', 'err'); return; }
     setLlmStatus('Testing…');
-    try { await ask({ system: 'Reply with the single word: ok', user: 'ping', maxTokens: 16 }, cfg); setLlmStatus('Connected — the provider accepted the request.', 'ok'); }
+    try { await ask({ system: 'Reply with the single word: ok', user: 'ping', maxTokens: 16 }, cfg); setLlmStatus('Connected, the provider accepted the request.', 'ok'); }
     catch (e) { setLlmStatus(e.message, 'err'); }
   });
 }
@@ -624,7 +669,7 @@ async function scan(blob) {
     await read(true);
     const dt = (performance.now() - t0) / 1000;
     $('#scan-time').textContent = `read in ${dt.toFixed(2)}s`;
-    toast(found ? `Board read in ${dt.toFixed(2)}s${S.uncertain.size ? ` · ${S.uncertain.size} square(s) to double-check` : ''}` : 'No grid found — adjust the box on the preview');
+    toast(found ? `Board read in ${dt.toFixed(2)}s${S.uncertain.size ? ` · ${S.uncertain.size} square(s) to double-check` : ''}` : 'No grid found, adjust the box on the preview');
   } catch (e) { console.error(e); toast('Could not read that image'); }
   drop.classList.remove('scanning');
 }
@@ -709,7 +754,7 @@ function onEdit(sq, action, to) {
 
 // ---------- wiring ----------
 function init() {
-  board = new Board($('#board'), { onMove: play, onEdit, editTool: () => S.tool });
+  board = new Board($('#board'), { onMove: play, onEdit, editTool: () => S.tool, autoQueen: () => P.autoq });
   buildPalette();
   S.orient = vsBot() ? S.bot.human : store.get('orient', 'w'); $('#auto').checked = store.get('auto', false); $('#think').value = store.get('think', '1500');
   rebuildBase();
@@ -722,7 +767,7 @@ function init() {
     if (it) { e.preventDefault(); scan(it.getAsFile()); }
     else if (document.activeElement === $('#fen')) return;
     else if (document.activeElement?.closest?.('input, textarea')) return;
-    else if (S.mode === 'review' && R.status === 'idle') { e.preventDefault(); $('#rv-pgn').value = e.clipboardData.getData('text'); toast('Game pasted — press Analyse'); }
+    else if (S.mode === 'review' && R.status === 'idle') { e.preventDefault(); $('#rv-pgn').value = e.clipboardData.getData('text'); toast('Game pasted, press Analyse'); }
     else {
       const txt = e.clipboardData.getData('text');
       const r = parsePositionText(txt);
@@ -745,7 +790,7 @@ function init() {
     if (!r) { const w = $('#ai-warn'); w.textContent = 'Could not find a FEN or board in that text.'; w.classList.remove('hidden'); return; }
     if (r.bottom) S.orient = r.bottom;
     loadFen(r.fen); $('#ai').close(); $('#ai-reply').value = '';
-    toast(S.valid ? 'Position loaded — check it, then play on' : 'Loaded, but the position needs a fix (see Scan card)');
+    toast(S.valid ? 'Position loaded, check it, then play on' : 'Loaded, but the position needs a fix (see Scan card)');
   });
   $('#btn-open').addEventListener('click', () => $('#file').click());
 
@@ -768,13 +813,12 @@ function init() {
   $('#auto').addEventListener('change', e => { store.set('auto', e.target.checked); if (e.target.checked) analyse(); });
   $('#think').addEventListener('change', e => store.set('think', e.target.value));
   $('#btn-help').addEventListener('click', () => $('#help').showModal());
-  wireReview(); wireSettings();
+  wireReview(); wireSettings(); wirePrefs(); applyPrefs();
   enhanceSelect($('#llm-provider')); enhanceSelect($('#think'), { small: true });
   document.addEventListener('click', e => { const c = e.target.closest('[data-close]'); if (c) c.closest('dialog').close(); });
   $('#settings').addEventListener('click', e => { const r = e.currentTarget.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) e.currentTarget.close(); });
   $('#btn-reset-all').addEventListener('click', resetAll);
-  const paintTheme = () => { const dark = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches; $('#btn-theme use').setAttribute('href', dark ? '#i-sun' : '#i-moon'); };
-  $('#btn-theme').addEventListener('click', () => { const dark = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches; const t = dark ? 'light' : 'dark'; document.documentElement.dataset.theme = t; store.set('theme', t); paintTheme(); });
+  $('#btn-theme').addEventListener('click', () => { setTheme(isDark() ? 'light' : 'dark'); });
   paintTheme();
   $('#btn-new').addEventListener('click', newGame);
   $('#btn-takeback').addEventListener('click', takeBack);
@@ -830,7 +874,7 @@ function init() {
   };
   paint();
   try {
-    engine = new Engine();
+    engine = new Engine({ multipv: P.lines });
     engine.ready.then(() => { st.engine = 'ok'; st.threads = engine.threads; paint(); });
   } catch (e) { st.engine = 'err'; paint(); }
   modelReady = loadModel().then(() => { st.model = 'ok'; paint(); }).catch(() => { st.model = 'err'; paint(); toast('Vision model failed to load'); });
@@ -873,7 +917,7 @@ function reportImport(r) {
   if (!r) return false;
   if (r.bad === 'position') toast('Could not set up the PGN start position');
   else if (r.bad) toast(`Played ${r.ok} move${r.ok === 1 ? '' : 's'} · stopped at "${r.bad}" (illegal here)`, 3500);
-  else toast(`Played ${r.ok} move${r.ok === 1 ? '' : 's'} — step through with ← →`);
+  else toast(`Played ${r.ok} move${r.ok === 1 ? '' : 's'}, step through with ← →`);
   return r.ok > 0;
 }
 

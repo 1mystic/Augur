@@ -121,7 +121,7 @@
           <div class="eng-ctl" id="eng-ctl">
             <label class="switch" title="Analyse automatically after every move"><input type="checkbox" id="auto" /><span></span><em>auto</em></label>
             <select id="think" title="Think time" aria-label="Think time">
-              <option value="500">0.5s</option><option value="1000">1s</option><option value="1500" selected>1.5s</option><option value="3000">3s</option>
+              <option value="500">0.5s</option><option value="1000">1s</option><option value="1500" selected>1.5s</option><option value="3000">3s</option><option value="6000">6s</option>
             </select>
           </div>
         </div>
@@ -143,7 +143,7 @@
         <div class="card-h"><h2>Game review</h2><button class="btn sm hidden" id="btn-rv-new" type="button"><svg class="ic"><use href="#i-plus"/></svg><span>New review</span></button></div>
         <div class="card-b">
           <div id="rv-input">
-            <textarea id="rv-pgn" rows="6" spellcheck="false" placeholder="Paste a game exported from chess.com, lichess or any app — PGN with headers, or just a move list (1. e4 e5 2. Nf3 …)"></textarea>
+            <textarea id="rv-pgn" rows="6" spellcheck="false" placeholder="Paste a game exported from chess.com, lichess or any app, PGN with headers, or just a move list (1. e4 e5 2. Nf3 …)"></textarea>
             <div class="rv-row">
               <button class="btn sm" id="btn-rv-file" type="button"><svg class="ic"><use href="#i-file"/></svg><span>Open .pgn…</span></button>
               <input type="file" id="rv-file" accept=".pgn,.txt,text/plain" hidden />
@@ -188,7 +188,7 @@
             <button class="btn sm" id="btn-open" type="button"><svg class="ic"><use href="#i-image"/></svg><span>Open…</span></button>
             <button class="linkish" id="btn-ai" type="button">Read it with an AI chat instead →</button>
           </div>
-          <p class="muted small hint hidden" id="crop-hint">Box wrong? Drag it, or pull the corner to resize — it re-reads instantly.</p>
+          <p class="muted small hint hidden" id="crop-hint">Box wrong? Drag it, or pull the corner to resize, it re-reads instantly.</p>
 
           <div class="setup">
             <div class="row"><span class="lbl">Seen from</span>
@@ -230,17 +230,43 @@
   </dialog>
   <dialog id="settings">
     <div class="dlg-h"><h3>Settings</h3><button class="btn icon sm" data-close type="button" aria-label="Close"><svg class="ic"><use href="#i-close"/></svg></button></div>
-    <section class="set-sec">
-      <h4>AI tutor</h4>
-      <p class="muted small">Add your own API key to get plain-English explanations of every move in <b>Tutor lesson</b> mode and the game review. The key stays in this browser and is sent only to the provider you choose.</p>
-      <label class="field"><span>Provider</span><select id="llm-provider"></select></label>
-      <label class="field" id="f-base"><span>Base URL</span><input id="llm-base" spellcheck="false" placeholder="https://…/v1" /></label>
-      <label class="field"><span>API key</span>
-        <div class="input-row"><input id="llm-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-…" /><button class="btn" id="btn-key-show" type="button">Show</button></div></label>
-      <label class="field"><span>Model</span><input id="llm-model" spellcheck="false" /></label>
-      <p class="muted small hidden" id="llm-status"></p>
-    </section>
-    <div class="dlg-btns spread"><button class="btn" id="btn-llm-clear" type="button">Remove key</button><span class="grow"></span><button class="btn" id="btn-llm-test" type="button">Test</button><button class="primary auto" id="btn-llm-save" type="button">Save</button></div>
+    <div class="dlg-body">
+      <section class="set-sec">
+        <h4>General</h4>
+        <div class="row"><div class="lbl-col"><span class="lbl">Theme</span></div>
+          <div class="seg" id="set-theme" role="radiogroup" aria-label="Theme"><button type="button" role="radio" data-v="system">System</button><button type="button" role="radio" data-v="light">Light</button><button type="button" role="radio" data-v="dark">Dark</button></div></div>
+        <div class="row"><div class="lbl-col"><span class="lbl">Suggestions</span><span class="muted small">How many moves Stockfish suggests in Analysis</span></div>
+          <div class="seg" id="set-lines" role="radiogroup" aria-label="Suggestions"><button type="button" role="radio" data-v="1">Best only</button><button type="button" role="radio" data-v="2">Top 2</button><button type="button" role="radio" data-v="3">Top 3</button></div></div>
+        <div class="row"><div class="lbl-col"><span class="lbl">Auto-analyse</span><span class="muted small">Suggest after every move in Analysis</span></div>
+          <label class="switch"><input type="checkbox" id="set-auto" aria-label="Auto-analyse" /><span></span></label></div>
+        <div class="row"><div class="lbl-col"><span class="lbl">Think time</span><span class="muted small">Per suggestion</span></div>
+          <div class="seg" id="set-think" role="radiogroup" aria-label="Think time"><button type="button" role="radio" data-v="500">0.5s</button><button type="button" role="radio" data-v="1500">1.5s</button><button type="button" role="radio" data-v="3000">3s</button><button type="button" role="radio" data-v="6000">6s</button></div></div>
+      </section>
+      <section class="set-sec">
+        <h4>Board</h4>
+        <div class="row"><div class="lbl-col"><span class="lbl">Coordinates</span></div><label class="switch"><input type="checkbox" id="set-coords" aria-label="Show coordinates" /><span></span></label></div>
+        <div class="row"><div class="lbl-col"><span class="lbl">Legal move dots</span></div><label class="switch"><input type="checkbox" id="set-dots" aria-label="Show legal moves" /><span></span></label></div>
+        <div class="row"><div class="lbl-col"><span class="lbl">Evaluation bar</span></div><label class="switch"><input type="checkbox" id="set-evalbar" aria-label="Show evaluation bar" /><span></span></label></div>
+        <div class="row"><div class="lbl-col"><span class="lbl">Piece animation</span></div><label class="switch"><input type="checkbox" id="set-anim" aria-label="Animate pieces" /><span></span></label></div>
+        <div class="row"><div class="lbl-col"><span class="lbl">Always promote to queen</span><span class="muted small">Skip the promotion picker</span></div><label class="switch"><input type="checkbox" id="set-autoq" aria-label="Auto queen" /><span></span></label></div>
+      </section>
+      <section class="set-sec">
+        <h4>AI tutor</h4>
+        <p class="muted small">Add your own API key to get plain-English explanations of every move in <b>Tutor lesson</b> mode and the game review. The key stays in this browser and is sent only to the provider you choose.</p>
+        <div class="row"><div class="lbl-col"><span class="lbl">Explain</span></div>
+          <div class="seg" id="set-who" role="radiogroup" aria-label="Explain moves of"><button type="button" role="radio" data-v="all">Both sides</button><button type="button" role="radio" data-v="mine">My moves</button></div></div>
+        <div class="row"><div class="lbl-col"><span class="lbl">Explain for</span></div>
+          <div class="seg" id="set-level" role="radiogroup" aria-label="Student level"><button type="button" role="radio" data-v="beginner">Beginner</button><button type="button" role="radio" data-v="intermediate">Club</button><button type="button" role="radio" data-v="advanced">Advanced</button></div></div>
+        <label class="field"><span>Provider</span><select id="llm-provider"></select></label>
+        <label class="field" id="f-base"><span>Base URL</span><input id="llm-base" spellcheck="false" placeholder="https://…/v1" /></label>
+        <label class="field"><span>API key</span>
+          <div class="input-row"><input id="llm-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-…" /><button class="btn" id="btn-key-show" type="button">Show</button></div></label>
+        <label class="field"><span>Model</span><input id="llm-model" spellcheck="false" /></label>
+        <p class="muted small hidden" id="llm-status"></p>
+        <div class="dlg-btns spread"><button class="btn" id="btn-llm-clear" type="button">Remove key</button><span class="grow"></span><button class="btn" id="btn-llm-test" type="button">Test</button><button class="primary auto" id="btn-llm-save" type="button">Save</button></div>
+      </section>
+    </div>
+    <div class="dlg-foot"><button class="btn" id="btn-prefs-reset" type="button">Restore defaults</button><span class="grow"></span><button class="primary auto" data-close type="button">Done</button></div>
   </dialog>
   <dialog id="confirm">
     <h3 id="confirm-title">Are you sure?</h3>
@@ -251,7 +277,7 @@
     <div class="dlg-h"><h3>Read the board with an AI chat</h3><button class="btn icon sm" data-close type="button" aria-label="Close"><svg class="ic"><use href="#i-close"/></svg></button></div>
     <ol class="steps">
       <li>Copy this prompt, open any AI chat (Gemini, ChatGPT, Claude…), paste your screenshot + the prompt.</li>
-      <li>Paste its reply below — JSON, a FEN, or the whole message, Augur finds the position in it.</li>
+      <li>Paste its reply below, JSON, a FEN, or the whole message, Augur finds the position in it.</li>
     </ol>
     <div class="prompt-wrap"><textarea id="ai-prompt" readonly rows="9"></textarea><button class="btn sm" id="btn-ai-copy" type="button">Copy prompt</button></div>
     <textarea id="ai-reply" rows="4" placeholder='{"fen": "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3", "bottom": "white"}'></textarea>
