@@ -837,7 +837,7 @@ async function explainRow(i) {
 function jumpMoment(dir) {
   const bad = ['mistake', 'blunder', 'miss'], idx = R.rows.map((r, i) => (bad.includes(r.cls) ? i + 1 : 0)).filter(Boolean);
   const t = dir > 0 ? idx.find(p => p > S.ply) : [...idx].reverse().find(p => p < S.ply);
-  if (t) { goto(t); revealCard($('#card-rmove')); } else toast(dir > 0 ? 'No more mistakes ahead' : 'No earlier mistakes');
+  if (t) goto(t); else toast(dir > 0 ? 'No more mistakes ahead' : 'No earlier mistakes');
 }
 function wireReview() {
   const warn = m => { const w = $('#rv-warn'); w.textContent = m || ''; w.classList.toggle('hidden', !m); };
@@ -860,7 +860,10 @@ function wireReview() {
     if (g) { const r = g.getBoundingClientRect(); goto(Math.round((e.clientX - r.left) / r.width * S.moves.length)); revealCard($('#card-rmove')); return; }
     const m = e.target.closest('[data-moment]'); if (m) jumpMoment(+m.dataset.moment);
   });
-  $('#card-rmove').addEventListener('click', e => { if (e.target.closest('[data-explain]')) explainRow(S.ply - 1); });
+  $('#card-rmove').addEventListener('click', e => {
+    if (e.target.closest('[data-explain]')) explainRow(S.ply - 1);
+    const mm = e.target.closest('[data-moment]'); if (mm) jumpMoment(+mm.dataset.moment);
+  });
 }
 
 // ---------- export & share ----------

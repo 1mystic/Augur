@@ -29,7 +29,6 @@ export function buildSummary(R, ply) {
     if (!w && !b && !['best', 'mistake', 'blunder'].includes(c)) return '';
     return `<tr><td><span class="cls-tag">${badge(c)}${CLASSES[c].label}</span></td><td class="${w ? '' : 'zero'}">${w}</td><td class="${b ? '' : 'zero'}">${b}</td></tr>`;
   }).join('');
-  const bad = R.rows.some(r => ['mistake', 'blunder', 'miss'].includes(r.cls));
   return `
     <div class="rv-title"><b>${esc(name('White'))} vs ${esc(name('Black'))}</b><span>${sub || 'Game review'}</span></div>
     <div class="acc">
@@ -39,10 +38,6 @@ export function buildSummary(R, ply) {
     <div class="graph" id="rv-graph" title="Click to jump to a move">${buildGraph(R.ws.slice(0, R.rows.length + 1), ply, R.total)}</div>
     <table class="ctable"><tbody>${rows}</tbody></table>
     ${phaseTable(R)}
-    <div class="moments">
-      <button class="btn" data-moment="-1" type="button" ${bad ? '' : 'disabled'}>‹ Previous mistake</button>
-      <button class="btn" data-moment="1" type="button" ${bad ? '' : 'disabled'}>Next mistake ›</button>
-    </div>
     ${R.info ? `<details class="prov"><summary>How was this produced?</summary><ul>
       <li>Stockfish 19 lite (WebAssembly) running in your browser; nothing is uploaded.</li>
       <li>Search: ${esc(R.info.label)}, top 2 lines per position, ${R.info.workers} worker${R.info.workers > 1 ? 's' : ''}.</li>
@@ -80,12 +75,15 @@ export function lessonCard({ kicker, meta, title, cls, chips, body, tip, footer 
   </div>`;
 }
 
+/** Review move card: fixed height, scrolling body, and a footer pinned at the bottom so nothing shifts while stepping. */
 export function buildMoveCard({ row, ply, title, evalAfter, text, busy, err, canExplain, template, tip, chips, opening, pending }) {
-  if (!row && pending) return `<div class="card-b">${lessonCard({ kicker: 'Move analysis', title: title || '', body: '<span class="dots">Still analysing this move…</span>' })}</div>`;
+  const nav = `<div class="rm-nav"><button class="btn sm" data-moment="-1" type="button">‹ Prev mistake</button><button class="btn sm" data-moment="1" type="button">Next mistake ›</button></div>`;
+  const frame = (lesson, extra = '') => `<div class="card-b rm-body"><div class="rm-scroll">${lesson}</div><div class="rm-foot">${extra}${nav}</div></div>`;
+  if (!row && pending) return frame(lessonCard({ kicker: 'Move analysis', title: title || '', body: '<span class="dots">Still analysing this move…</span>' }));
   if (!row) {
-    return `<div class="card-b">${lessonCard({ kicker: 'Move analysis', title: ply === 0 ? 'Starting position' : 'Final position', body: `${opening ? `<b>${esc(opening)}</b>. ` : ''}Step through the game with ← → or click a point on the graph or a move in the timeline.` })}</div>`;
+    return frame(lessonCard({ kicker: 'Move analysis', title: ply === 0 ? 'Starting position' : 'Final position', body: `${opening ? `<b>${esc(opening)}</b>. ` : ''}Step through the game with ← → or click a point on the graph or a move in the list.` }));
   }
   const body = text ? esc(text) : busy ? `<span class="dots">The tutor is thinking…</span>` : `${err ? `<div class="err">${esc(err)}</div>` : ''}${esc(template || '')}`;
-  const footer = `<div class="lesson-actions"><span class="rm-evals"><span>Eval after <b>${esc(evalAfter)}</b></span><span>Accuracy <b>${row.acc.toFixed(0)}%</b></span></span>${canExplain && !text && !busy ? '<button class="btn sm" data-explain type="button">Explain with AI</button>' : ''}</div>`;
-  return `<div class="card-b">${lessonCard({ kicker: `Move analysis · ${row.side === 'w' ? 'White' : 'Black'}`, title, cls: row.cls, chips, body, tip, footer })}</div>`;
+  const facts = `<div class="lesson-actions"><span class="rm-evals"><span>Eval after <b>${esc(evalAfter)}</b></span><span>Accuracy <b>${row.acc.toFixed(0)}%</b></span></span>${canExplain && !text && !busy ? '<button class="btn sm" data-explain type="button">Explain with AI</button>' : ''}</div>`;
+  return frame(lessonCard({ kicker: `Move analysis · ${row.side === 'w' ? 'White' : 'Black'}`, title, cls: row.cls, chips, body, tip }), facts);
 }
