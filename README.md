@@ -1,10 +1,10 @@
 <p align="center"><img src="docs/banner.svg" alt="augur" width="100%"></p>
 
-# augur
+# Augur
 
-paste a screenshot of a chessboard → the position is read locally in under a second → keep playing it move by move for either side → ask stockfish for the top 3 moves whenever you want.
+Paste a screenshot of a chessboard → the position is read locally in under a second → keep playing it move by move for either side → ask stockfish for the top 3 moves whenever you want.
 
-no server, works offline (the optional AI tutor is the only thing that talks to the network, and only if you add your own key). web app (installable PWA) + native desktop app (macOS / Ubuntu / any Linux) from the same code.
+No server, works offline (the optional AI tutor is the only thing that talks to the network, and only if you add your own key). web app (installable PWA) + native desktop app (macOS / Ubuntu / any Linux) from the same code.
 
 ```
 screenshot ──► board detector ──► 64 tiles ──► tiny CNN (≈400 KB) ──► FEN ──► chess.js ◄──► you
@@ -41,11 +41,11 @@ screenshot ──► board detector ──► 64 tiles ──► tiny CNN (≈40
   </tr>
 </table>
 
-## layout
+## Layout
 
-a slim **mode rail** on the left switches between the five modes; the side panel has a **sub-navbar** (Engine / Game / Lesson / Review, Moves, Position) so only one group of controls shows at a time. every mode has a horizontal **move timeline** whose chips are colour-coded by grade, and the tutor and review share one focused **lesson card**: the move, its grade and motifs, the explanation, and a tip box with the better move and the habit to build.
+A slim **mode rail** on the left switches between the five modes; the side panel has a **sub-navbar** (Engine / Game / Lesson / Review, Moves, Position) so only one group of controls shows at a time. every mode has a horizontal **move timeline** whose chips are colour-coded by grade, and the tutor and review share one focused **lesson card**: the move, its grade and motifs, the explanation, and a tip box with the better move and the habit to build.
 
-## modes
+## Modes
 
 | mode | what you get |
 |---|---|
@@ -57,14 +57,14 @@ a slim **mode rail** on the left switches between the five modes; the side panel
 | **Export & share** | the *Export* button on the Moves panel gives a standard **PGN** (seven-tag roster, players, result, opening, time control, `[FEN]` for custom starts), optionally **annotated** with move-grade NAGs and Lichess-style `[%eval]` comments after a review or tutor lesson. copy it, download a `.pgn`, or use the device share sheet. also: copy the **FEN**, copy an upload-free **share link** (the moves live in the URL; opening it loads the game), or **open in Lichess**. |
 | **Game review** | paste a PGN exported from chess.com, lichess or any app (or open a `.pgn`, or review the game you just played). you get accuracy for both sides, an eval graph, a classification table (brilliant → blunder), the opening name, "previous / next mistake" navigation, a best-move arrow plus badge on the board, and an optional "explain this move" via the AI tutor. it works the way fast review sites do: a shallow pass (depth 9) streams in move by move and gives the full review in well under a second, then a deeper pass (depth 14 Standard, 18 Deep) refines it in the background while you read. each worker takes a contiguous run of positions so its hash table carries over, the refining pass walks backwards (the trick Lichess's fishnet uses), searches exit early once the best move is stable, known opening moves get a quick look only, and the workers shut down after use. you also get accuracy by phase (opening / middlegame / endgame), a "How was this produced?" panel, and plain-English template explanations built from the engine's numbers when no AI key is set. |
 
-settings (gear icon):
+Settings (gear icon):
 
 - **General**: theme (system / light / dark), how many moves Stockfish suggests (best only, top 2 or top 3), auto-analyse, think time.
 - **Board**: coordinates, legal-move dots, evaluation bar, piece animation, always promote to queen.
 - **AI tutor**: explain both sides or only your moves, explanation level (beginner / club / advanced), provider, API key and model. the key lives in this browser's `localStorage` and is sent only to the provider you pick.
 - **Restore defaults** resets the options above; the header **Reset** button resets the whole app (board, history, scan and settings).
 
-## what it does
+## What it does
 
 | | |
 |---|---|
@@ -76,7 +76,7 @@ settings (gear icon):
 | **rebuild old games** | paste a whole move list (`1. e4 e5 2. Nf3 …`) or a full PGN (headers, comments, variations are stripped; `[FEN]` honoured), it replays all moves and stops at the first illegal one. a bare list without move numbers continues from the current position. |
 | **suggest** | `Space` (also inside the empty move box) → top 3 lines with eval, depth, PV, numbered arrows. type `1`/`2`/`3` + Enter in the move box (or click the line) to play it. *auto* re-analyses after every move. think time 0.5–3 s. multi-threaded engine when the page is cross-origin isolated (native app, dev server), single-thread otherwise. |
 
-## run it
+## Run it
 
 ```bash
 cd app
@@ -85,13 +85,13 @@ npm run dev          # web: http://localhost:5173
 npm run build        # static site in app/dist, host anywhere (github pages, netlify, …)
 ```
 
-the built site is a PWA: open it in chrome/edge → *install app*. after first load everything (engine + model) is cached and it works offline.
+The built site is a PWA: open it in chrome/edge → *install app*. after first load everything (engine + model) is cached and it works offline.
 
-### download the desktop app
+### Download the desktop app
 
-native builds for **macOS on Apple Silicon** (`.dmg`) and **Ubuntu / Linux** (`.deb` and `.AppImage`) are attached to each [GitHub release](https://github.com/1mystic/Augur/releases). they run fully offline with the same features. the macOS build is not notarised yet: on first launch right-click the app and choose *Open* (or run `xattr -dr com.apple.quarantine /Applications/Augur.app`).
+Native builds for **macOS on Apple Silicon** (`.dmg`) and **Ubuntu / Linux** (`.deb` and `.AppImage`) are attached to each [GitHub release](https://github.com/1mystic/Augur/releases). they run fully offline with the same features. the macOS build is not notarised yet: on first launch right-click the app and choose *Open* (or run `xattr -dr com.apple.quarantine /Applications/Augur.app`).
 
-### native desktop (Tauri, small installers, system webview)
+### Native desktop (Tauri, small installers, system webview)
 
 ```bash
 # one-time: rust (https://rustup.rs) and, on ubuntu/debian:
@@ -103,9 +103,9 @@ npm run app:build    # → src-tauri/target/release/bundle/{deb,appimage,dmg,mac
 
 macOS builds need a mac (or use CI). `.github/workflows/desktop.yml` builds `.dmg` (Apple Silicon + Intel), `.deb` and `.AppImage` on every `v*` tag and attaches them to a draft release.
 
-native adds one thing over the web build: clipboard images are read through the OS (`arboard`), because WebKit webviews don't always hand pasted images to JS.
+Native adds one thing over the web build: clipboard images are read through the OS (`arboard`), because WebKit webviews don't always hand pasted images to JS.
 
-## accuracy / speed (this build)
+## Accuracy / speed (this build)
 
 | test set | squares | perfect boards | board found | orientation | median time |
 |---|---|---|---|---|---|
@@ -113,27 +113,27 @@ native adds one thing over the web build: clipboard images are read through the 
 | small boards (240–320 px) in 1080p screenshots | 100% | 12/12 | 12/12 | 12/12 | ~0.6 s |
 | tile-level held-out val (hard augmentations) | 95.5% | n/a | n/a | n/a | n/a |
 
-full-screenshot tests are synthetic (UI bars, highlights, coords, jpeg). real chess.com piece styles aren't open-licence so they're not in training, if a set misreads, amber rings show which squares to fix, and the AI-chat route is always there.
+Full-screenshot tests are synthetic (UI bars, highlights, coords, jpeg). real chess.com piece styles aren't open-licence so they're not in training, if a set misreads, amber rings show which squares to fix, and the AI-chat route is always there.
 
-### deploy on vercel (free tier)
+### Deploy on vercel (free tier)
 
-the repo ships `vercel.json` (repo root) and `app/vercel.json` (if you set *Root Directory* to `app`). they:
+The repo ships `vercel.json` (repo root) and `app/vercel.json` (if you set *Root Directory* to `app`). they:
 
-- build with `npm ci` + `vite build` and serve `app/dist`, a ~5 MB static site, no functions, so it sits comfortably inside the free plan;
-- add `Cross-Origin-Opener/Embedder-Policy` headers → cross-origin isolation → **multi-threaded Stockfish**;
-- cache `/assets/*` as immutable (hashed file names) and the engine / model / pieces for a day with stale-while-revalidate, so repeat visits cost almost no bandwidth; `sw.js` and `index.html` always revalidate.
+- Build with `npm ci` + `vite build` and serve `app/dist`, a ~5 MB static site, no functions, so it sits comfortably inside the free plan;
+- Add `Cross-Origin-Opener/Embedder-Policy` headers → cross-origin isolation → **multi-threaded Stockfish**;
+- Cache `/assets/*` as immutable (hashed file names) and the engine / model / pieces for a day with stale-while-revalidate, so repeat visits cost almost no bandwidth; `sw.js` and `index.html` always revalidate.
 
 `.vercelignore` keeps training code and tests out of CLI uploads.
 
-## the vision model
+## The vision model
 
-trained from scratch, see `train/`.
+Trained from scratch, see `train/`.
 
 - **data**: 160k synthetic 32×32 tiles rendered from 33 open lichess piece sets on ~20 real board themes + random pastel/dark themes. each tile is cut from a 3×3 neighbourhood so crops bleed like real ones, with last-move highlights, check glow, coordinates, move dots, capture rings, arrows, wood/noise textures, blur, JPEG artifacts, brightness jitter, crop jitter.
 - **model**: 3× (conv3×3 → relu → maxpool) + dense 96 + dense 13. ~110k params, float32 blob ≈ 400 KB. forward pass is ~60 lines of plain JS (`src/vision/classify.js`).
 - **board detection** (`src/vision/detect.js`): every internal grid line of a checkerboard is one unbroken colour edge exactly the board's height. find columns/rows with long edge runs, group by run span, keep the group whose spacing = span/8. no ML needed, ~50 ms.
 
-retrain:
+Retrain:
 
 ```bash
 cd train
@@ -145,7 +145,7 @@ cp data/augur.bin data/augur.json ../app/public/model/
 python make_tests.py ../tests/shots 24 alpha,staunty,leipzig   # full screenshots + truth.json
 ```
 
-## layout
+## Layout
 
 ```
 app/
@@ -163,6 +163,6 @@ train/                        data generator, trainer, test-screenshot maker
 tests/                        e2e accuracy/timing script
 ```
 
-## licences
+## Licences
 
 GPL-3.0-or-later (because it ships Stockfish, GPLv3). piece images: cburnett, CC BY-SA 3.0. training piece sets from lichess (each set has its own licence, they're used only as training data, not shipped).
