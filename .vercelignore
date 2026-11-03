@@ -1,0 +1,9 @@
+train/
+tests/
+docs/
+*.md
+node_modules/
+app/node_modules/
+app/dist/
+app/src-tauri/
+.github/

@@ -4,3 +4,4 @@ app/src-tauri/target/
 app/src-tauri/gen/
 train/data/
 train/__pycache__/
+.vercel/
