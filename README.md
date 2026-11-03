@@ -43,18 +43,23 @@ screenshot ──► board detector ──► 64 tiles ──► tiny CNN (≈40
 
 ## Layout
 
-A slim **mode rail** on the left switches between the five modes; the side panel has a **sub-navbar** (Engine / Game / Lesson / Review, Moves, Position) so only one group of controls shows at a time. every mode has a horizontal **move timeline** whose chips are colour-coded by grade, and the tutor and review share one focused **lesson card**: the move, its grade and motifs, the explanation, and a tip box with the better move and the habit to build.
+- **Top navbar:** the five modes (Analyse, PvP, Bot, Tutor, Review) sit in the header next to **New game**, **Reset**, theme, settings and help. *New game* opens a small menu: start fresh in the current mode, or switch to another one.
+- **Adaptive board:** the board always gets as much room as the screen allows. On wide screens it runs full height with the panel beside it; on tall or portrait screens the panel moves into the space below it. The page itself never scrolls on desktop. Player labels and clocks appear beside the board only in timed games.
+- **Tabbed panel:** a small tab bar (Engine / Game / Lesson / Review, Moves, Position) shows one view at a time; its cards fill the full width in a responsive grid, and settings always sit last.
+- **Lesson first:** in Tutor and Review the focused move card leads the panel (move, grade, tactical motifs, explanation, and a tip with the better move and the habit to build), followed by the colour-coded move timeline. "Next mistake" and graph clicks bring it into view.
+- **Checkmate pop:** an animated badge over the board announces the result for three seconds.
+- **Look:** flat slate panels with no borders, a pastel colour per mode, Outfit and JetBrains Mono (bundled, so it works offline), light and dark themes.
 
 ## Modes
 
 | mode | what you get |
 |---|---|
-| **Analysis** | scan a screenshot, explore lines, top-3 Stockfish suggestions with eval bar. |
+| **Analyse** | scan a screenshot, explore lines, top-3 Stockfish suggestions (or best only / top 2, in Settings) with an eval bar. |
 | **Player vs Player** | two humans, one board. optional **hints** (off by default): Stockfish shows a single suggested move on request. optional **clocks**: untimed, 3, 5 or 10 minutes (the clock starts after the first move, flag fall loses on time). |
 | **Play the bot** | Stockfish at three levels, *Easy* (~1000), *Intermediate* (~1700, Elo-limited), *Expert* (full strength). pick your colour, take moves back. replies come back in about a quarter of a second, and you can play it on a 3, 5 or 10 minute clock too. the bot can't hang: if Stockfish fails to load or answer in time (some phones can't allocate the WASM heap), a small built-in alpha-beta engine (`src/minibot.js`) moves instead. |
 | **Tutor lesson** | play the bot while a tutor explains every move (yours and the bot's) in plain English. each move is graded (best / good / inaccuracy / mistake / blunder…) by Stockfish; the wording comes from an LLM using **your own API key** (Anthropic, OpenAI, Gemini, OpenRouter or any OpenAI-compatible/local endpoint). without a key you still get the engine's verdict and the better move. |
 | **Coach layer** | every graded move (tutor and review) also gets **tactical motifs** found by board geometry on chess.js: hanging pieces, missed captures, forks, pins, skewers, discovered attacks and checks, king-safety changes (castling rights, pawn shield, pressure around the king), and missed or allowed checkmates. they show as chips, the opponent's punishing reply is drawn as a red arrow, and they feed both explanation layers: a **deterministic template explainer** (offline, instant, never contradicts the engine) and, if you add a key, the AI tutor, which receives them as verified facts. |
-| **Export & share** | the *Export* button on the Moves panel gives a standard **PGN** (seven-tag roster, players, result, opening, time control, `[FEN]` for custom starts), optionally **annotated** with move-grade NAGs and Lichess-style `[%eval]` comments after a review or tutor lesson. copy it, download a `.pgn`, or use the device share sheet. also: copy the **FEN**, copy an upload-free **share link** (the moves live in the URL; opening it loads the game), or **open in Lichess**. |
+| **Export & share** | the *Export* button on the Moves tab gives a standard **PGN** (seven-tag roster, players, result, opening, time control, `[FEN]` for custom starts), optionally **annotated** with move-grade NAGs and Lichess-style `[%eval]` comments after a review or tutor lesson. copy it or download a `.pgn`. Also: copy the **FEN**, copy an upload-free **share link** (the moves live in the URL; opening it loads the game), or **open in Lichess**. |
 | **Game review** | paste a PGN exported from chess.com, lichess or any app (or open a `.pgn`, or review the game you just played). you get accuracy for both sides, an eval graph, a classification table (brilliant → blunder), the opening name, "previous / next mistake" navigation, a best-move arrow plus badge on the board, and an optional "explain this move" via the AI tutor. it works the way fast review sites do: a shallow pass (depth 9) streams in move by move and gives the full review in well under a second, then a deeper pass (depth 14 Standard, 18 Deep) refines it in the background while you read. each worker takes a contiguous run of positions so its hash table carries over, the refining pass walks backwards (the trick Lichess's fishnet uses), searches exit early once the best move is stable, known opening moves get a quick look only, and the workers shut down after use. you also get accuracy by phase (opening / middlegame / endgame), a "How was this produced?" panel, and plain-English template explanations built from the engine's numbers when no AI key is set. |
 
 Settings (gear icon):
@@ -145,7 +150,7 @@ cp data/augur.bin data/augur.json ../app/public/model/
 python make_tests.py ../tests/shots 24 alpha,staunty,leipzig   # full screenshots + truth.json
 ```
 
-## Layout
+## Project structure
 
 ```
 app/
@@ -155,6 +160,8 @@ app/
   src/coach.js                eval maths, move classification, accuracy, opening names
   src/llm.js                  bring-your-own-key LLM client (Anthropic / OpenAI-compatible)
   src/review.js               HTML builders for the review + tutor panels
+  src/motifs.js               tactical motif detection (forks, pins, hanging pieces…)
+  src/minibot.js              built-in fallback bot if Stockfish cannot load
   src/vision/                 detector + CNN
   public/engine/              stockfish-19-lite-single.{js,wasm}
   public/model/               augur.{bin,json}

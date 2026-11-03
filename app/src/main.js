@@ -59,7 +59,13 @@ const LEVELS = {
 };
 
 // ---------- helpers ----------
-function toast(msg, ms = 2200) { const t = $('#toast'); t.textContent = msg; t.classList.remove('hidden'); clearTimeout(t._t); t._t = setTimeout(() => t.classList.add('hidden'), ms); }
+function toast(msg, ms = 2200) {
+  const t = $('#toast');
+  // an open modal dialog sits in the browser's top layer, above any z-index: show the toast inside it so it stays visible
+  const host = document.querySelector('dialog[open]') || document.body;
+  if (t.parentElement !== host) host.appendChild(t);
+  t.textContent = msg; t.classList.remove('hidden'); clearTimeout(t._t); t._t = setTimeout(() => t.classList.add('hidden'), ms);
+}
 function parsePlacement(pl) {
   const map = {}; pl.split('/').forEach((row, i) => { let f = 0; for (const ch of row) { if (/\d/.test(ch)) f += +ch; else { map['abcdefgh'[f] + (8 - i)] = ch; f++; } } });
   return map;
@@ -694,7 +700,11 @@ let lastLesson = '';
 function revealLesson(key) {
   if (key === lastLesson) return;
   lastLesson = key;
-  const card = $('#card-coach'), pane = card.closest('.pane');
+  revealCard($('#card-coach'));
+}
+/** Scroll the panel (desktop) so `card` is in view at the top. */
+function revealCard(card) {
+  const pane = card?.closest('.pane');
   if (!DESKTOP.matches || !pane || pane.hidden) return;
   requestAnimationFrame(() => pane.scrollTo({ top: Math.max(0, pane.scrollTop + card.getBoundingClientRect().top - pane.getBoundingClientRect().top - 4), behavior: 'smooth' }));
 }
@@ -825,7 +835,7 @@ async function explainRow(i) {
 function jumpMoment(dir) {
   const bad = ['mistake', 'blunder', 'miss'], idx = R.rows.map((r, i) => (bad.includes(r.cls) ? i + 1 : 0)).filter(Boolean);
   const t = dir > 0 ? idx.find(p => p > S.ply) : [...idx].reverse().find(p => p < S.ply);
-  if (t) goto(t); else toast(dir > 0 ? 'No more mistakes ahead' : 'No earlier mistakes');
+  if (t) { goto(t); revealCard($('#card-rmove')); } else toast(dir > 0 ? 'No more mistakes ahead' : 'No earlier mistakes');
 }
 function wireReview() {
   const warn = m => { const w = $('#rv-warn'); w.textContent = m || ''; w.classList.toggle('hidden', !m); };
@@ -845,7 +855,7 @@ function wireReview() {
   $('#seg-speed').addEventListener('click', e => { const b = e.target.closest('button[data-v]'); if (b) { R.speed = b.dataset.v; store.set('speed', R.speed); renderReview(); } });
   $('#rv-summary').addEventListener('click', e => {
     const g = e.target.closest('#rv-graph');
-    if (g) { const r = g.getBoundingClientRect(); goto(Math.round((e.clientX - r.left) / r.width * S.moves.length)); return; }
+    if (g) { const r = g.getBoundingClientRect(); goto(Math.round((e.clientX - r.left) / r.width * S.moves.length)); revealCard($('#card-rmove')); return; }
     const m = e.target.closest('[data-moment]'); if (m) jumpMoment(+m.dataset.moment);
   });
   $('#card-rmove').addEventListener('click', e => { if (e.target.closest('[data-explain]')) explainRow(S.ply - 1); });
@@ -961,7 +971,6 @@ function openExport() {
   const paint = () => { $('#ex-pgn').value = buildPgn({ annotate: annot.checked }); };
   annot.onchange = paint; paint();
   $('#ex-fen').value = curFen();
-  $('#ex-native').classList.toggle('hidden', !navigator.share);
   $('#export').showModal();
 }
 function wireExport() {
@@ -977,13 +986,6 @@ function wireExport() {
       ? 'https://lichess.org/analysis/pgn/' + encodeURIComponent(S.moves.map((m, i) => (i % 2 ? '' : `${i / 2 + 1}. `) + m.san).join(' '))
       : 'https://lichess.org/analysis/' + curFen().replace(/ /g, '_');
     window.open(url, '_blank', 'noopener');
-  });
-  $('#ex-native').addEventListener('click', async () => {
-    const text = $('#ex-pgn').value, file = new File([text], name(), { type: 'application/x-chess-pgn' });
-    try {
-      if (navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file], title: 'Chess game (PGN)' });
-      else await navigator.share({ title: 'Chess game', text: `${text}\n${shareLink()}` });
-    } catch (e) { if (e.name !== 'AbortError') toast('Sharing is not available here'); }
   });
 }
 
