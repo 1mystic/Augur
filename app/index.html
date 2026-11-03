@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Augur — screenshot to chess position</title>
+  <meta name="description" content="Paste a chessboard screenshot, continue the game move by move, ask Stockfish for the top 3 moves. Runs fully offline in your browser." />
+  <meta name="theme-color" content="#eef0fb" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="./icon-192.png" />
+  <link rel="stylesheet" href="./src/style.css" />
+</head>
+<body>
+  <div class="blobs" aria-hidden="true"><i></i><i></i><i></i></div>
+
+  <header class="top">
+    <div class="brand"><img src="./icon.svg" alt="" /><b>augur</b><span>read the board · see ahead</span></div>
+    <div class="pills">
+      <span class="pill" id="pill-model"><i></i>vision</span>
+      <span class="pill" id="pill-engine"><i></i>stockfish</span>
+      <button class="ghost icon" id="btn-help" title="Shortcuts">?</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="board-col">
+      <div class="board-wrap">
+        <div class="evalbar" id="evalbar"><div class="fill"></div><span id="evaltext">0.0</span></div>
+        <div id="board"></div>
+      </div>
+      <div class="under">
+        <div class="turn" id="turn"><i></i><span>White to move</span></div>
+        <div class="btns">
+          <button class="ghost" id="btn-back" title="Back (←)">‹</button>
+          <button class="ghost" id="btn-fwd" title="Forward (→)">›</button>
+          <button class="ghost" id="btn-flip" title="Flip board (F)">⇅ flip</button>
+          <button class="ghost" id="btn-edit" title="Edit position (E)">✎ edit</button>
+        </div>
+      </div>
+      <div class="palette hidden" id="palette"></div>
+    </section>
+
+    <aside class="panel">
+      <div class="card" id="card-scan">
+        <div class="card-h"><h2>Scan</h2><div class="eng-ctl"><span class="muted small" id="scan-time"></span><button class="ghost small" id="btn-paste" type="button">paste</button><button class="ghost small" id="btn-open" type="button">open…</button></div></div>
+        <label class="drop" id="drop">
+          <input type="file" accept="image/*" id="file" hidden />
+          <div class="drop-empty" id="drop-empty">
+            <div class="drop-ico">⌗</div>
+            <div><b>Paste a screenshot</b> <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>V</kbd></div>
+            <div class="muted small">or drop / click to choose · chess.com, lichess, apps</div>
+          </div>
+          <canvas id="preview" class="hidden"></canvas>
+        </label>
+        <button class="linkish" id="btn-ai" type="button">or read it with any AI chat (Gemini, ChatGPT…) →</button>
+        <p class="muted small hint hidden" id="crop-hint">Box wrong? Drag it, or pull the corner to resize — it re-reads instantly.</p>
+
+        <div class="setup">
+          <div class="row">
+            <span class="lbl">Seen from</span>
+            <div class="seg" id="seg-orient"><button data-v="w">White</button><button data-v="b">Black</button></div>
+          </div>
+          <div class="row">
+            <span class="lbl">To move</span>
+            <div class="seg" id="seg-turn"><button data-v="w">White</button><button data-v="b">Black</button></div>
+          </div>
+          <div class="row">
+            <span class="lbl">Castling</span>
+            <div class="chips" id="castle">
+              <label><input type="checkbox" value="K" />O-O</label><label><input type="checkbox" value="Q" />O-O-O</label>
+              <label class="b"><input type="checkbox" value="k" />o-o</label><label class="b"><input type="checkbox" value="q" />o-o-o</label>
+            </div>
+          </div>
+          <div class="row fen-row">
+            <input id="fen" spellcheck="false" aria-label="FEN" />
+            <button class="ghost" id="btn-copy" title="Copy FEN">copy</button>
+          </div>
+          <p class="warn hidden" id="warn"></p>
+        </div>
+      </div>
+
+      <div class="card" id="card-moves">
+        <div class="card-h"><h2>Moves</h2><button class="ghost small" id="btn-reset" title="Back to scanned position">reset</button></div>
+        <form id="move-form" autocomplete="off"><span class="side-tag" id="side-tag"><i></i><b>White</b></span><input id="move-in" placeholder="White's move: e4, Nf3, O-O…" /></form>
+        <p class="muted small tip">Moves alternate automatically. Type <kbd>1</kbd>/<kbd>2</kbd>/<kbd>3</kbd> + Enter to play a suggestion. Paste a move list / PGN to rebuild a game.</p>
+        <div class="movelist" id="movelist"><span class="muted small">Move pieces for either side, type them, or paste a whole move list / PGN to rebuild an old game.</span></div>
+      </div>
+      <div class="card" id="card-engine">
+        <div class="card-h">
+          <h2>Best moves</h2>
+          <div class="eng-ctl">
+            <label class="switch" title="Analyse automatically after every move"><input type="checkbox" id="auto" /><span></span>auto</label>
+            <select id="think" title="Think time">
+              <option value="500">0.5s</option><option value="1000">1s</option><option value="1500" selected>1.5s</option><option value="3000">3s</option>
+            </select>
+          </div>
+        </div>
+        <button class="primary" id="btn-suggest">Suggest top 3 <kbd>Space</kbd></button>
+        <ol class="lines" id="lines"></ol>
+      </div>
+
+    </aside>
+  </main>
+
+  <dialog id="help">
+    <h3>Shortcuts</h3>
+    <ul>
+      <li><kbd>Ctrl/⌘ V</kbd> paste screenshot</li><li><kbd>Space</kbd> suggest top 3</li>
+      <li><kbd>←</kbd> <kbd>→</kbd> step through moves</li><li><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> play suggested line</li>
+      <li><kbd>F</kbd> flip · <kbd>E</kbd> edit · <kbd>T</kbd> switch side to move</li>
+    </ul>
+    <p class="muted small">Edit mode: pick a piece below the board and click squares. Right-click clears a square. Drag to move pieces anywhere.</p>
+    <p class="muted small">Pieces: cburnett (CC BY-SA 3.0). Engine: Stockfish 19 lite (GPLv3) via stockfish.js. Vision model trained on open lichess piece sets.</p>
+    <form method="dialog"><button class="primary">ok</button></form>
+  </dialog>
+  <dialog id="ai">
+    <h3>Read the board with an AI chat</h3>
+    <ol class="steps">
+      <li>Copy this prompt, open any AI chat (Gemini, ChatGPT, Claude…), paste your screenshot + the prompt.</li>
+      <li>Paste its reply below — JSON, a FEN, or the whole message, Augur finds the position in it.</li>
+    </ol>
+    <div class="prompt-wrap"><textarea id="ai-prompt" readonly rows="9"></textarea><button class="ghost small" id="btn-ai-copy" type="button">copy prompt</button></div>
+    <textarea id="ai-reply" rows="4" placeholder='{"fen": "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3", "bottom": "white"}'></textarea>
+    <p class="warn hidden" id="ai-warn"></p>
+    <div class="dlg-btns"><button class="ghost" id="btn-ai-cancel" type="button">cancel</button><button class="primary" id="btn-ai-load" type="button">load position</button></div>
+  </dialog>
+  <div class="toast hidden" id="toast"></div>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

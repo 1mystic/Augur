@@ -1,0 +1,13 @@
+{
+  "name": "Augur — screenshot to chess position",
+  "short_name": "Augur",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#eef0fb",
+  "theme_color": "#eef0fb",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
