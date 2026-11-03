@@ -16,6 +16,18 @@ const S = {
   orient: 'w', turn: 'w', castle: 'KQkq', placement: START,
   base: null, valid: true, moves: [], ply: 0,
   edit: false, tool: null, lines: [], uncertain: new Set(),
+  mode: store.get('mode', 'analysis'), hints: store.get('hints', false),
+  bot: { level: store.get('level', 'intermediate'), human: store.get('human', 'w') },
+};
+const MODES = {
+  analysis: 'Scan a position, explore lines and ask Stockfish for the top 3 moves.',
+  pvp: 'Two players, one board. Moves alternate; Stockfish can give a single hint if you allow it.',
+  bot: 'Play against Stockfish. Pick a difficulty and your colour.',
+};
+const LEVELS = {
+  easy: { label: 'Easy', desc: 'Makes plenty of mistakes — good for learning (~1000).', opts: { UCI_LimitStrength: false, 'Skill Level': 1 }, go: 'movetime 200' },
+  intermediate: { label: 'Intermediate', desc: 'Solid club player, still beatable (~1700).', opts: { 'Skill Level': 20, UCI_LimitStrength: true, UCI_Elo: 1700 }, go: 'movetime 500' },
+  expert: { label: 'Expert', desc: 'Full-strength Stockfish. Good luck.', opts: { UCI_LimitStrength: false, 'Skill Level': 20 }, go: 'movetime 1200' },
 };
 
 // ---------- helpers ----------
@@ -60,11 +72,12 @@ function rebuildBase({ keepHistory = false } = {}) {
   if (!keepHistory) { S.moves = []; S.ply = 0; }
   S.lines = [];
   refresh();
-  if (S.valid && $('#auto').checked && !S.edit) analyse();
+  if (S.valid && autoOn() && !S.edit) analyse();
 }
 
 let batching = false;
-function play(from, to, promotion) {
+function play(from, to, promotion, byBot = false) {
+  if (S.mode === 'bot' && !byBot && !batching && curFen().split(' ')[1] !== S.bot.human) return false;
   const g = game();
   let mv;
   try { mv = g.move({ from, to, promotion }); } catch { return false; }
@@ -73,10 +86,14 @@ function play(from, to, promotion) {
   S.ply++; S.lines = []; S.uncertain = new Set();
   if (batching) return true;
   refresh();
-  if ($('#auto').checked) analyse(); else engine?.stop();
+  if (autoOn()) analyse(); else stopEngine();
   return true;
 }
-function goto(ply) { S.ply = Math.max(0, Math.min(S.moves.length, ply)); S.lines = []; refresh(); if ($('#auto').checked) analyse(); }
+function goto(ply) { S.ply = Math.max(0, Math.min(S.moves.length, ply)); S.lines = []; refresh(); if (autoOn()) analyse(); }
+const autoOn = () => S.mode === 'analysis' && $('#auto').checked;
+/** Engine lines that the current mode lets the player see. */
+const shown = () => (S.mode === 'analysis' ? S.lines.slice(0, 3) : S.mode === 'pvp' && S.hints ? S.lines.slice(0, 1) : []);
+const humanCanMove = () => S.mode !== 'bot' || curFen().split(' ')[1] === S.bot.human;
 
 // ---------- rendering ----------
 let board;
@@ -89,22 +106,28 @@ function refresh() {
   if (g && g.inCheck()) check = Object.keys(pieces).find(sq => pieces[sq] === (turn === 'w' ? 'K' : 'k'));
   board.set({
     pieces, orientation: S.orient, edit: S.edit, lastMove: last, check, uncertain: S.ply === 0 ? S.uncertain : new Set(),
-    legal: sq => (g && !S.edit ? g.moves({ square: sq, verbose: true }) : []),
-    arrows: S.lines.slice(0, 3).map((l, i) => ({ from: l.pv[0].slice(0, 2), to: l.pv[0].slice(2, 4), color: RAW[i], width: [15, 11, 8][i], label: String(i + 1) })),
+    legal: sq => (g && !S.edit && humanCanMove() ? g.moves({ square: sq, verbose: true }) : []),
+    arrows: shown().map((l, i) => ({ from: l.pv[0].slice(0, 2), to: l.pv[0].slice(2, 4), color: RAW[i], width: [15, 11, 8][i], label: String(i + 1) })),
   });
   // turn
   const t = $('#turn'); t.classList.toggle('b', turn === 'b');
+  const winner = turn === 'w' ? 'Black' : 'White';
   let status = `${turn === 'w' ? 'White' : 'Black'} to move`;
-  if (g && g.isCheckmate()) status = `Checkmate — ${turn === 'w' ? 'Black' : 'White'} wins`;
-  else if (g && g.isStalemate()) status = 'Stalemate';
+  if (g && g.isCheckmate()) status = S.mode === 'bot' ? (winner === (S.bot.human === 'w' ? 'White' : 'Black') ? 'Checkmate — you win!' : 'Checkmate — the bot wins') : `Checkmate — ${winner} wins`;
+  else if (g && g.isStalemate()) status = 'Stalemate — draw';
   else if (g && g.isDraw()) status = 'Draw';
   else if (!S.valid) status = 'Position needs fixing';
+  else if (S.mode === 'bot') status = humanCanMove() ? 'Your move' : 'Bot is thinking…';
   t.querySelector('span').textContent = status;
+  t.classList.toggle('over', !!g && g.isGameOver());
+  if (g && g.isGameOver() && S.moves.length && S.ply === S.moves.length && S.endShown !== fen) { S.endShown = fen; toast(status, 4000); }
   // move box follows the side to move
-  const over = !g || g.isGameOver() || S.edit, side = turn === 'w' ? 'White' : 'Black';
+  const mine = humanCanMove();
+  const over = !g || g.isGameOver() || S.edit || !mine, side = turn === 'w' ? 'White' : 'Black';
   const tag = $('#side-tag'); tag.classList.toggle('b', turn === 'b'); tag.classList.toggle('off', over); tag.querySelector('b').textContent = side;
   const mi = $('#move-in'); mi.disabled = over;
-  mi.placeholder = !g ? 'Fix the position first' : S.edit ? 'Finish editing first' : g.isGameOver() ? status : `${side}'s move… (or 1 · 2 · 3)`;
+  mi.placeholder = !g ? 'Fix the position first' : S.edit ? 'Finish editing first' : g.isGameOver() ? status : !mine ? 'Waiting for the bot…' : `${side}'s move… (e4, Nf3, O-O)`;
+  renderMode(turn);
   // setup controls
   setSeg('#seg-orient', S.orient); setSeg('#seg-turn', turn);
   const bc = fen.split(' ')[2];
@@ -113,12 +136,13 @@ function refresh() {
   $('#btn-edit').classList.toggle('on', S.edit); $('#palette').classList.toggle('hidden', !S.edit);
   $('#evalbar').classList.toggle('flip', S.orient === 'b');
   renderMoves(); renderLines();
+  syncBot();
 }
 function setSeg(sel, v) { document.querySelectorAll(sel + ' button').forEach(b => b.classList.toggle('on', b.dataset.v === v)); }
 
 function renderMoves() {
   const el = $('#movelist');
-  if (!S.moves.length) { el.innerHTML = '<span class="muted small">Move pieces for either side, type them, or paste a whole move list / PGN to rebuild an old game.</span>'; return; }
+  if (!S.moves.length) { el.innerHTML = '<span class="empty">No moves yet.</span>'; return; }
   const startBlack = S.base.split(' ')[1] === 'b';
   let html = '', n = 1, i = 0;
   if (startBlack) { html += `<span class="n">${n}.</span><span class="m muted">…</span>`; }
@@ -140,16 +164,19 @@ function fmtScore(l, turn) {
 }
 function renderLines() {
   const el = $('#lines'), fen = curFen(), turn = fen.split(' ')[1];
-  if (!S.lines.length) { el.innerHTML = `<li class="empty">${S.valid ? 'Ask for suggestions any time — for whichever side is to move.' : 'Fix the position first.'}</li>`; setEval(null); return; }
-  el.innerHTML = S.lines.slice(0, 3).map((l, i) => {
+  const lines = shown();
+  if (!lines.length) { el.innerHTML = `<li class="empty">${!S.valid ? 'Fix the position first.' : S.mode === 'pvp' ? 'Press Hint when you are stuck.' : 'Ask for suggestions any time — for whichever side is to move.'}</li>`; setEval(null); return; }
+  el.innerHTML = lines.map((l, i) => {
     const g = new Chess(fen); const sans = [];
     for (const u of l.pv.slice(0, 7)) { try { sans.push(g.move({ from: u.slice(0, 2), to: u.slice(2, 4), promotion: u[4] }).san); } catch { break; } }
     const sc = fmtScore(l, turn);
     return `<li data-i="${i}" title="Play ${sans[0]} (${i + 1})"><span class="c" style="background:${COLORS[i]}"></span><span class="ev">${sc.txt}</span><span class="pv"><b>${sans[0] || ''}</b> ${sans.slice(1).join(' ')}</span><span class="d">d${l.depth}</span></li>`;
   }).join('');
-  setEval(fmtScore(S.lines[0], turn));
+  setEval(fmtScore(lines[0], turn));
 }
 function setEval(sc) {
+  if (S.mode !== 'analysis') { $('#evalbar').classList.add('off'); return; }
+  $('#evalbar').classList.remove('off');
   $('#evalbar .fill').style.height = sc ? `${(sc.w * 100).toFixed(1)}%` : '50%';
   $('#evaltext').textContent = sc ? sc.txt.replace('+', '') : '';
 }
@@ -157,17 +184,131 @@ function setEval(sc) {
 // ---------- engine ----------
 let engine = null;
 function analyse() {
-  if (!S.valid || !engine) return;
+  if (!S.valid || !engine || S.mode === 'bot' || (S.mode === 'pvp' && !S.hints)) return;
   const g = game(); if (g.isGameOver()) { S.lines = []; renderLines(); return; }
   const fen = curFen(), btn = $('#btn-suggest');
-  btn.disabled = true; btn.firstChild.textContent = 'Thinking… ';
-  engine.analyse(fen, +$('#think').value, (lines, done) => {
+  const label = $('#suggest-label'), idle = S.mode === 'pvp' ? 'Hint' : 'Suggest top 3';
+  btn.disabled = true; label.textContent = 'Thinking…';
+  engine.analyse(fen, S.mode === 'pvp' ? 1000 : +$('#think').value, (lines, done) => {
     if (curFen() !== fen) return;
     S.lines = lines; refresh();
-    if (done) { btn.disabled = false; btn.firstChild.textContent = 'Suggest top 3 '; }
+    if (done) { btn.disabled = false; label.textContent = idle; }
   });
 }
-function playLine(i) { const l = S.lines[i]; if (l) { const u = l.pv[0]; play(u.slice(0, 2), u.slice(2, 4), u[4]); } }
+function playLine(i) { const l = shown()[i]; if (l) { const u = l.pv[0]; play(u.slice(0, 2), u.slice(2, 4), u[4]); } }
+
+function stopEngine() { engine?.stop(); const b = $('#btn-suggest'); if (b) { b.disabled = false; $('#suggest-label').textContent = S.mode === 'pvp' ? 'Hint' : 'Suggest top 3'; } }
+
+// ---------- bot ----------
+let botEngine = null, botJob = null;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+function botTurn() {
+  if (S.mode !== 'bot' || !S.valid || S.edit || S.ply !== S.moves.length) return null;
+  const fen = curFen();
+  return new Chess(fen).isGameOver() || fen.split(' ')[1] === S.bot.human ? null : fen;
+}
+/** Idempotent: starts / cancels the bot's search so it matches the current position. */
+function syncBot() {
+  const want = botTurn();
+  if (!(botJob && botJob.fen === want)) {
+    if (botJob) { botEngine?.stop(); botJob = null; }
+    if (want) {
+      botEngine ??= new Engine({ multipv: 1, single: true });
+      const lv = LEVELS[S.bot.level], job = botJob = { fen: want }, t0 = performance.now();
+      botEngine.setOptions(lv.opts);
+      botEngine.analyse(want, lv.go, async (_l, done, best) => {
+        if (!done || botJob !== job) return;
+        await sleep(Math.max(0, 450 - (performance.now() - t0)));   // feel less instant
+        if (botJob !== job || curFen() !== want) return;
+        botJob = null;
+        if (best) play(best.slice(0, 2), best.slice(2, 4), best[4], true); else refresh();
+      });
+    }
+  }
+  document.querySelectorAll('.player .think').forEach(el => el.classList.add('hidden'));
+  if (botJob) botPlayerEl().querySelector('.think').classList.remove('hidden');
+}
+const botPlayerEl = () => $(S.orient === S.bot.human ? '#pl-top' : '#pl-bot');
+
+// ---------- modes ----------
+function renderMode(turn) {
+  document.querySelectorAll('#seg-mode button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === S.mode)));
+  $('#mode-desc').textContent = MODES[S.mode];
+  $('#opts-pvp').classList.toggle('hidden', S.mode !== 'pvp'); $('#opts-bot').classList.toggle('hidden', S.mode !== 'bot');
+  $('#hints').checked = S.hints;
+  document.querySelectorAll('#seg-level button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === S.bot.level)));
+  document.querySelectorAll('#seg-human button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === S.bot.human)));
+  $('#level-desc').textContent = LEVELS[S.bot.level].desc;
+  $('#btn-takeback').disabled = !S.moves.length || S.ply === 0;
+  // engine card: top-3 in analysis, single hint in pvp, hidden when hints are off or vs the bot
+  const eng = S.mode === 'analysis' || (S.mode === 'pvp' && S.hints);
+  $('#card-engine').classList.toggle('hidden', !eng);
+  $('#engine-title').textContent = S.mode === 'pvp' ? 'Hint' : 'Best moves';
+  $('#eng-ctl').classList.toggle('hidden', S.mode !== 'analysis');
+  if (!$('#btn-suggest').disabled) $('#suggest-label').textContent = S.mode === 'pvp' ? 'Show hint' : 'Suggest top 3';
+  // player bars: bottom of the screen = S.orient
+  const bot = S.mode === 'bot';
+  for (const [el, side] of [[$('#pl-top'), S.orient === 'w' ? 'b' : 'w'], [$('#pl-bot'), S.orient]]) {
+    el.classList.toggle('black', side === 'b'); el.classList.toggle('active', turn === side && S.valid);
+    const isBot = bot && side !== S.bot.human;
+    el.querySelector('b').textContent = isBot ? `Bot · ${LEVELS[S.bot.level].label}` : bot ? 'You' : side === 'w' ? 'White' : 'Black';
+    el.querySelector('.sub').textContent = bot ? (side === 'w' ? 'White' : 'Black') : '';
+  }
+  $('#move-tip').textContent = bot ? 'Drag a piece or type your move. Take back to try a different line.' : 'Type a move, or drag pieces on the board. Paste a move list or PGN to rebuild a game.';
+}
+function setMode(m) {
+  if (m === S.mode) return;
+  S.mode = m; store.set('mode', m);
+  S.lines = []; stopEngine();
+  if (m === 'bot') S.orient = S.bot.human;
+  refresh();
+}
+function setHuman(c) {
+  S.bot.human = c; store.set('human', c); S.orient = c; S.lines = []; refresh();
+}
+
+// ---------- reset / new game ----------
+function confirmDialog(title, msg, ok = 'Continue') {
+  return new Promise(res => {
+    const d = $('#confirm'); $('#confirm-title').textContent = title; $('#confirm-msg').textContent = msg; $('#confirm-yes').textContent = ok;
+    const done = v => { d.close(); res(v); };
+    $('#confirm-yes').onclick = () => done(true); $('#confirm-no').onclick = () => done(false); d.oncancel = () => res(false);
+    d.showModal();
+  });
+}
+function clearScan() {
+  S.img = S.box = S.grid = null;
+  pv.classList.add('hidden'); $('#drop-empty').classList.remove('hidden'); $('#crop-hint').classList.add('hidden'); $('#scan-time').textContent = '';
+}
+/** Back to the starting position. `settings` also restores every preference to its default. */
+function resetState({ settings }) {
+  botJob = null; botEngine?.stop(); stopEngine();
+  clearScan();
+  if (settings) {
+    S.mode = 'analysis'; S.hints = false; S.bot = { level: 'intermediate', human: 'w' };
+    $('#auto').checked = false; $('#think').value = '1500';
+    for (const k of ['mode', 'hints', 'level', 'human', 'orient', 'auto', 'think']) try { localStorage.removeItem('augur:' + k); } catch { /* ignore */ }
+  }
+  Object.assign(S, { orient: S.mode === 'bot' ? S.bot.human : 'w', turn: 'w', castle: 'KQkq', placement: START, edit: false, tool: null, lines: [], uncertain: new Set(), endShown: null });
+  rebuildBase();
+}
+async function resetAll() {
+  if ((S.moves.length || S.img || S.mode !== 'analysis') && !(await confirmDialog('Reset everything?', 'This clears the board, move history, scanned image and all settings back to their defaults.', 'Reset'))) return;
+  resetState({ settings: true }); toast('Reset to defaults');
+}
+async function newGame() {
+  if (S.moves.length && !(await confirmDialog('Start a new game?', 'The current game will be cleared.', 'New game'))) return;
+  resetState({ settings: false }); toast('New game');
+}
+function takeBack() {
+  if (!S.moves.length) return;
+  botJob = null; botEngine?.stop();
+  // back to the last position where it was the human's turn
+  let p = S.ply - 1;
+  while (p > 0 && S.moves[p - 1].fen.split(' ')[1] !== S.bot.human) p--;
+  S.moves = S.moves.slice(0, Math.max(0, p)); S.ply = S.moves.length; S.lines = [];
+  refresh();
+}
 
 // ---------- vision ----------
 let modelReady = null;
@@ -189,7 +330,7 @@ async function scan(blob) {
 }
 async function read(detectOrientation) {
   S.grid = classifyBoard(S.img, S.box);
-  if (detectOrientation) { S.orient = guessFlipped(S.grid) ? 'b' : 'w'; S.turn = S.orient; S.castle = 'KQkq'; }
+  if (detectOrientation) { S.orient = guessFlipped(S.grid) ? 'b' : 'w'; S.turn = S.orient; S.castle = 'KQkq'; if (S.mode === 'bot') S.bot.human = S.orient; }
   S.uncertain = new Set();
   const flip = S.orient === 'b';
   S.grid.forEach((row, r) => row.forEach((c, f) => { if (c.conf < 0.8) S.uncertain.add(flip ? 'abcdefgh'[7 - f] + (r + 1) : 'abcdefgh'[f] + (8 - r)); }));
@@ -253,7 +394,7 @@ function buildPalette() {
 function markTool() { document.querySelectorAll('#palette button[data-t]').forEach(b => b.classList.toggle('on', (b.dataset.t || null) === S.tool)); }
 function toggleEdit(on = !S.edit) {
   if (on && S.ply) { S.placement = curFen().split(' ')[0]; S.turn = curFen().split(' ')[1]; }
-  S.edit = on; engine?.stop(); rebuildBase();
+  S.edit = on; stopEngine(); rebuildBase();
 }
 function onEdit(sq, action, to) {
   if (!sq) return;
@@ -270,7 +411,7 @@ function onEdit(sq, action, to) {
 function init() {
   board = new Board($('#board'), { onMove: play, onEdit, editTool: () => S.tool });
   buildPalette();
-  S.orient = store.get('orient', 'w'); $('#auto').checked = store.get('auto', false); $('#think').value = store.get('think', '1500');
+  S.orient = S.mode === 'bot' ? S.bot.human : store.get('orient', 'w'); $('#auto').checked = store.get('auto', false); $('#think').value = store.get('think', '1500');
   rebuildBase();
 
   // file / paste / drop
@@ -326,6 +467,13 @@ function init() {
   $('#auto').addEventListener('change', e => { store.set('auto', e.target.checked); if (e.target.checked) analyse(); });
   $('#think').addEventListener('change', e => store.set('think', e.target.value));
   $('#btn-help').addEventListener('click', () => $('#help').showModal());
+  $('#btn-reset-all').addEventListener('click', resetAll);
+  $('#btn-new').addEventListener('click', newGame);
+  $('#btn-takeback').addEventListener('click', takeBack);
+  $('#seg-mode').addEventListener('click', e => { const b = e.target.closest('button[data-v]'); if (b) setMode(b.dataset.v); });
+  $('#seg-level').addEventListener('click', e => { const b = e.target.closest('button[data-v]'); if (!b) return; S.bot.level = b.dataset.v; store.set('level', b.dataset.v); botJob = null; botEngine?.stop(); refresh(); });
+  $('#seg-human').addEventListener('click', e => { const b = e.target.closest('button[data-v]'); if (b) setHuman(b.dataset.v); });
+  $('#hints').addEventListener('change', e => { S.hints = e.target.checked; store.set('hints', S.hints); S.lines = []; stopEngine(); refresh(); });
 
   $('#move-in').addEventListener('keydown', e => {
     if (e.key === ' ' && !e.target.value.trim()) { e.preventDefault(); analyse(); }   // Space on empty box = suggest
@@ -403,7 +551,7 @@ function importMoves(text) {
   batching = false;
   if (!ok && fullGame) { Object.assign(S, snapshot); }
   S.lines = []; refresh();
-  if (ok && $('#auto').checked) analyse();
+  if (ok && autoOn()) analyse();
   return { ok, total: toks.length, bad };
 }
 function reportImport(r) {

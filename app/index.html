@@ -4,8 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Augur — screenshot to chess position</title>
-  <meta name="description" content="Paste a chessboard screenshot, continue the game move by move, ask Stockfish for the top 3 moves. Runs fully offline in your browser." />
-  <meta name="theme-color" content="#eef0fb" />
+  <meta name="description" content="Paste a chessboard screenshot, continue the game move by move, ask Stockfish for the top 3 moves, or play against a bot. Runs fully offline in your browser." />
+  <meta name="theme-color" content="#f6f7fb" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#14161f" media="(prefers-color-scheme: dark)" />
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="icon" href="./icon.svg" type="image/svg+xml" />
   <link rel="icon" href="./favicon-32.png" type="image/png" sizes="32x32" />
@@ -14,107 +15,173 @@
   <link rel="stylesheet" href="./src/style.css" />
 </head>
 <body>
-  <div class="blobs" aria-hidden="true"><i></i><i></i><i></i></div>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-reset" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></symbol>
+      <symbol id="i-flip" viewBox="0 0 24 24"><path d="M7 4v16M7 20l-3-3M7 20l3-3"/><path d="M17 20V4M17 4l-3 3M17 4l3 3"/></symbol>
+      <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></symbol>
+      <symbol id="i-left" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+      <symbol id="i-right" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></symbol>
+      <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.6 2.2c-.7.4-1.1.9-1.1 1.8"/><path d="M12 17h.01"/></symbol>
+      <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/></symbol>
+      <symbol id="i-paste" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4h6v3H9z"/></symbol>
+      <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M21 16l-5-5-8 9"/></symbol>
+      <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></symbol>
+      <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c.4-3.4 2.9-5.2 6-5.2s5.6 1.8 6 5.2"/><path d="M16 5a3 3 0 0 1 0 6M18 14.8c1.9.6 3.2 2.2 3.5 5.2"/></symbol>
+      <symbol id="i-bot" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V4M9.5 4h5"/><path d="M9 13.5h.01M15 13.5h.01M9.5 17h5"/></symbol>
+      <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+      <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+    </defs>
+  </svg>
 
   <header class="top">
-    <div class="brand"><img src="./icon.svg" alt="" /><b>augur</b><span>read the board · see ahead</span></div>
-    <div class="pills">
-      <span class="pill" id="pill-model"><i></i>vision</span>
-      <span class="pill" id="pill-engine"><i></i>stockfish</span>
-      <button class="ghost icon" id="btn-help" title="Shortcuts">?</button>
+    <div class="brand"><img src="./icon.svg" alt="" width="30" height="30" /><b>augur</b><span>read the board · see ahead</span></div>
+    <div class="top-r">
+      <span class="pill" id="pill-model" title="Vision model"><i></i>vision</span>
+      <span class="pill" id="pill-engine" title="Stockfish"><i></i>stockfish</span>
+      <button class="btn" id="btn-reset-all" type="button" title="Reset everything to defaults"><svg class="ic"><use href="#i-reset"/></svg><span>Reset</span></button>
+      <button class="btn icon" id="btn-help" type="button" title="Shortcuts" aria-label="Shortcuts"><svg class="ic"><use href="#i-help"/></svg></button>
     </div>
   </header>
 
   <main class="layout">
     <section class="board-col">
       <div class="board-wrap">
-        <div class="evalbar" id="evalbar"><div class="fill"></div><span id="evaltext">0.0</span></div>
-        <div id="board"></div>
+        <div class="evalbar" id="evalbar" title="Evaluation"><div class="fill"></div><span id="evaltext">0.0</span></div>
+        <div class="board-stack">
+          <div class="player" id="pl-top"><i class="chip"></i><b></b><span class="sub"></span><span class="think hidden"><u></u><u></u><u></u></span></div>
+          <div id="board"></div>
+          <div class="player" id="pl-bot"><i class="chip"></i><b></b><span class="sub"></span><span class="think hidden"><u></u><u></u><u></u></span></div>
+        </div>
       </div>
       <div class="under">
         <div class="turn" id="turn"><i></i><span>White to move</span></div>
-        <div class="btns">
-          <button class="ghost" id="btn-back" title="Back (←)">‹</button>
-          <button class="ghost" id="btn-fwd" title="Forward (→)">›</button>
-          <button class="ghost" id="btn-flip" title="Flip board (F)">⇅ flip</button>
-          <button class="ghost" id="btn-edit" title="Edit position (E)">✎ edit</button>
+        <div class="tools">
+          <button class="btn icon" id="btn-back" type="button" title="Back (←)" aria-label="Previous move"><svg class="ic"><use href="#i-left"/></svg></button>
+          <button class="btn icon" id="btn-fwd" type="button" title="Forward (→)" aria-label="Next move"><svg class="ic"><use href="#i-right"/></svg></button>
+          <button class="btn" id="btn-flip" type="button" title="Flip board (F)"><svg class="ic"><use href="#i-flip"/></svg><span>Flip</span></button>
+          <button class="btn" id="btn-edit" type="button" title="Edit position (E)"><svg class="ic"><use href="#i-edit"/></svg><span>Edit</span></button>
         </div>
       </div>
       <div class="palette hidden" id="palette"></div>
     </section>
 
     <aside class="panel">
-      <div class="card" id="card-scan">
-        <div class="card-h"><h2>Scan</h2><div class="eng-ctl"><span class="muted small" id="scan-time"></span><button class="ghost small" id="btn-paste" type="button">paste</button><button class="ghost small" id="btn-open" type="button">open…</button></div></div>
-        <label class="drop" id="drop">
-          <input type="file" accept="image/*" id="file" hidden />
-          <div class="drop-empty" id="drop-empty">
-            <div class="drop-ico">⌗</div>
-            <div><b>Paste a screenshot</b> <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>V</kbd></div>
-            <div class="muted small">or drop / click to choose · chess.com, lichess, apps</div>
-          </div>
-          <canvas id="preview" class="hidden"></canvas>
-        </label>
-        <button class="linkish" id="btn-ai" type="button">or read it with any AI chat (Gemini, ChatGPT…) →</button>
-        <p class="muted small hint hidden" id="crop-hint">Box wrong? Drag it, or pull the corner to resize — it re-reads instantly.</p>
+      <div class="card" id="card-game">
+        <div class="card-h"><h2>Game</h2><button class="btn sm" id="btn-new" type="button"><svg class="ic"><use href="#i-plus"/></svg><span>New game</span></button></div>
+        <div class="modes" id="seg-mode" role="radiogroup" aria-label="Game mode">
+          <button type="button" role="radio" data-v="analysis"><svg class="ic"><use href="#i-search"/></svg><span>Analysis</span></button>
+          <button type="button" role="radio" data-v="pvp"><svg class="ic"><use href="#i-users"/></svg><span>Player vs Player</span></button>
+          <button type="button" role="radio" data-v="bot"><svg class="ic"><use href="#i-bot"/></svg><span>Play the bot</span></button>
+        </div>
+        <p class="mode-desc muted" id="mode-desc"></p>
 
-        <div class="setup">
+        <div class="opts hidden" id="opts-pvp">
           <div class="row">
-            <span class="lbl">Seen from</span>
-            <div class="seg" id="seg-orient"><button data-v="w">White</button><button data-v="b">Black</button></div>
+            <div class="lbl-col"><span class="lbl">Hints</span><span class="muted small">Stockfish shows one suggested move on request</span></div>
+            <label class="switch"><input type="checkbox" id="hints" aria-label="Allow hints" /><span></span></label>
           </div>
-          <div class="row">
-            <span class="lbl">To move</span>
-            <div class="seg" id="seg-turn"><button data-v="w">White</button><button data-v="b">Black</button></div>
-          </div>
-          <div class="row">
-            <span class="lbl">Castling</span>
-            <div class="chips" id="castle">
-              <label><input type="checkbox" value="K" />O-O</label><label><input type="checkbox" value="Q" />O-O-O</label>
-              <label class="b"><input type="checkbox" value="k" />o-o</label><label class="b"><input type="checkbox" value="q" />o-o-o</label>
+        </div>
+        <div class="opts hidden" id="opts-bot">
+          <div class="row stack">
+            <span class="lbl">Difficulty</span>
+            <div class="seg wide" id="seg-level" role="radiogroup" aria-label="Difficulty">
+              <button type="button" role="radio" data-v="easy">Easy</button><button type="button" role="radio" data-v="intermediate">Intermediate</button><button type="button" role="radio" data-v="expert">Expert</button>
             </div>
+            <span class="muted small" id="level-desc"></span>
           </div>
-          <div class="row fen-row">
-            <input id="fen" spellcheck="false" aria-label="FEN" />
-            <button class="ghost" id="btn-copy" title="Copy FEN">copy</button>
+          <div class="row">
+            <span class="lbl">You play</span>
+            <div class="seg" id="seg-human" role="radiogroup" aria-label="Your colour"><button type="button" role="radio" data-v="w">White</button><button type="button" role="radio" data-v="b">Black</button></div>
           </div>
-          <p class="warn hidden" id="warn"></p>
+          <button class="btn full" id="btn-takeback" type="button"><svg class="ic"><use href="#i-undo"/></svg><span>Take back last move</span></button>
         </div>
       </div>
 
-      <div class="card" id="card-moves">
-        <div class="card-h"><h2>Moves</h2><button class="ghost small" id="btn-reset" title="Back to scanned position">reset</button></div>
-        <form id="move-form" autocomplete="off"><span class="side-tag" id="side-tag"><i></i><b>White</b></span><input id="move-in" placeholder="White's move: e4, Nf3, O-O…" /></form>
-        <p class="muted small tip">Moves alternate automatically. Type <kbd>1</kbd>/<kbd>2</kbd>/<kbd>3</kbd> + Enter to play a suggestion. Paste a move list / PGN to rebuild a game.</p>
-        <div class="movelist" id="movelist"><span class="muted small">Move pieces for either side, type them, or paste a whole move list / PGN to rebuild an old game.</span></div>
-      </div>
       <div class="card" id="card-engine">
         <div class="card-h">
-          <h2>Best moves</h2>
-          <div class="eng-ctl">
-            <label class="switch" title="Analyse automatically after every move"><input type="checkbox" id="auto" /><span></span>auto</label>
-            <select id="think" title="Think time">
+          <h2 id="engine-title">Best moves</h2>
+          <div class="eng-ctl" id="eng-ctl">
+            <label class="switch" title="Analyse automatically after every move"><input type="checkbox" id="auto" /><span></span><em>auto</em></label>
+            <select id="think" title="Think time" aria-label="Think time">
               <option value="500">0.5s</option><option value="1000">1s</option><option value="1500" selected>1.5s</option><option value="3000">3s</option>
             </select>
           </div>
         </div>
-        <button class="primary" id="btn-suggest">Suggest top 3 <kbd>Space</kbd></button>
+        <button class="primary" id="btn-suggest" type="button"><svg class="ic"><use href="#i-bulb"/></svg><span id="suggest-label">Suggest top 3</span><kbd>Space</kbd></button>
         <ol class="lines" id="lines"></ol>
       </div>
 
+      <div class="card" id="card-moves">
+        <div class="card-h"><h2>Moves</h2><button class="btn sm" id="btn-reset" type="button" title="Rewind to the first position"><svg class="ic"><use href="#i-undo"/></svg><span>Rewind</span></button></div>
+        <form id="move-form" autocomplete="off"><span class="side-tag" id="side-tag"><i></i><b>White</b></span><input id="move-in" placeholder="White's move: e4, Nf3, O-O…" aria-label="Enter a move" /></form>
+        <p class="muted small tip" id="move-tip">Type a move, or drag pieces on the board. Paste a move list or PGN to rebuild a game.</p>
+        <div class="movelist" id="movelist"></div>
+      </div>
+
+      <details class="card fold" id="card-scan" open>
+        <summary><h2>Position</h2><span class="muted small" id="scan-time"></span></summary>
+        <div class="fold-body">
+          <label class="drop" id="drop">
+            <input type="file" accept="image/*" id="file" hidden />
+            <div class="drop-empty" id="drop-empty">
+              <svg class="ic xl"><use href="#i-image"/></svg>
+              <div><b>Paste a screenshot</b> <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>V</kbd></div>
+              <div class="muted small">or drop / click to choose · chess.com, lichess, apps</div>
+            </div>
+            <canvas id="preview" class="hidden"></canvas>
+          </label>
+          <div class="scan-actions">
+            <button class="btn sm" id="btn-paste" type="button"><svg class="ic"><use href="#i-paste"/></svg><span>Paste</span></button>
+            <button class="btn sm" id="btn-open" type="button"><svg class="ic"><use href="#i-image"/></svg><span>Open…</span></button>
+            <button class="linkish" id="btn-ai" type="button">Read it with an AI chat instead →</button>
+          </div>
+          <p class="muted small hint hidden" id="crop-hint">Box wrong? Drag it, or pull the corner to resize — it re-reads instantly.</p>
+
+          <div class="setup">
+            <div class="row"><span class="lbl">Seen from</span>
+              <div class="seg" id="seg-orient"><button type="button" data-v="w">White</button><button type="button" data-v="b">Black</button></div></div>
+            <div class="row"><span class="lbl">To move</span>
+              <div class="seg" id="seg-turn"><button type="button" data-v="w">White</button><button type="button" data-v="b">Black</button></div></div>
+            <div class="row"><span class="lbl">Castling</span>
+              <div class="chips" id="castle">
+                <label><input type="checkbox" value="K" />O-O</label><label><input type="checkbox" value="Q" />O-O-O</label>
+                <label class="b"><input type="checkbox" value="k" />o-o</label><label class="b"><input type="checkbox" value="q" />o-o-o</label>
+              </div></div>
+            <div class="row fen-row">
+              <input id="fen" spellcheck="false" aria-label="FEN" />
+              <button class="btn icon" id="btn-copy" type="button" title="Copy FEN" aria-label="Copy FEN"><svg class="ic"><use href="#i-copy"/></svg></button>
+            </div>
+            <p class="warn hidden" id="warn"></p>
+          </div>
+        </div>
+      </details>
     </aside>
   </main>
 
+  <footer class="foot">Augur runs entirely in your browser · Stockfish 19 (GPLv3) · pieces by cburnett (CC BY-SA 3.0)</footer>
+
   <dialog id="help">
-    <h3>Shortcuts</h3>
-    <ul>
-      <li><kbd>Ctrl/⌘ V</kbd> paste screenshot</li><li><kbd>Space</kbd> suggest top 3</li>
-      <li><kbd>←</kbd> <kbd>→</kbd> step through moves</li><li><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> play suggested line</li>
-      <li><kbd>F</kbd> flip · <kbd>E</kbd> edit · <kbd>T</kbd> switch side to move</li>
+    <h3>Keyboard shortcuts</h3>
+    <ul class="keys">
+      <li><span><kbd>Ctrl/⌘</kbd> <kbd>V</kbd></span>Paste a screenshot</li>
+      <li><span><kbd>Space</kbd></span>Suggest / hint</li>
+      <li><span><kbd>←</kbd> <kbd>→</kbd></span>Step through moves</li>
+      <li><span><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></span>Play a suggested line</li>
+      <li><span><kbd>F</kbd></span>Flip board</li>
+      <li><span><kbd>E</kbd></span>Edit position</li>
+      <li><span><kbd>T</kbd></span>Switch side to move</li>
     </ul>
     <p class="muted small">Edit mode: pick a piece below the board and click squares. Right-click clears a square. Drag to move pieces anywhere.</p>
     <p class="muted small">Pieces: cburnett (CC BY-SA 3.0). Engine: Stockfish 19 lite (GPLv3) via stockfish.js. Vision model trained on open lichess piece sets.</p>
-    <form method="dialog"><button class="primary">ok</button></form>
+    <form method="dialog" class="dlg-btns"><button class="primary auto">Got it</button></form>
+  </dialog>
+  <dialog id="confirm">
+    <h3 id="confirm-title">Are you sure?</h3>
+    <p class="muted" id="confirm-msg"></p>
+    <div class="dlg-btns"><button class="btn" id="confirm-no" type="button">Cancel</button><button class="primary auto" id="confirm-yes" type="button">Continue</button></div>
   </dialog>
   <dialog id="ai">
     <h3>Read the board with an AI chat</h3>
@@ -122,12 +189,12 @@
       <li>Copy this prompt, open any AI chat (Gemini, ChatGPT, Claude…), paste your screenshot + the prompt.</li>
       <li>Paste its reply below — JSON, a FEN, or the whole message, Augur finds the position in it.</li>
     </ol>
-    <div class="prompt-wrap"><textarea id="ai-prompt" readonly rows="9"></textarea><button class="ghost small" id="btn-ai-copy" type="button">copy prompt</button></div>
+    <div class="prompt-wrap"><textarea id="ai-prompt" readonly rows="9"></textarea><button class="btn sm" id="btn-ai-copy" type="button">Copy prompt</button></div>
     <textarea id="ai-reply" rows="4" placeholder='{"fen": "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3", "bottom": "white"}'></textarea>
     <p class="warn hidden" id="ai-warn"></p>
-    <div class="dlg-btns"><button class="ghost" id="btn-ai-cancel" type="button">cancel</button><button class="primary" id="btn-ai-load" type="button">load position</button></div>
+    <div class="dlg-btns"><button class="btn" id="btn-ai-cancel" type="button">Cancel</button><button class="primary auto" id="btn-ai-load" type="button">Load position</button></div>
   </dialog>
-  <div class="toast hidden" id="toast"></div>
+  <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
   <script type="module" src="./src/main.js"></script>
 </body>
 </html>
