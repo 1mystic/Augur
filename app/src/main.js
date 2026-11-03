@@ -3,9 +3,13 @@ import { Board, pieceSrc } from './board.js';
 import { Engine } from './engine.js';
 import { detectBoard, fallbackBox } from './vision/detect.js';
 import { loadModel, classifyBoard, guessFlipped, gridToPlacement } from './vision/classify.js';
+import { summarise, terminalEval, judge, fmtWhite, whiteWin, openingName, inBook, CLASSES } from './coach.js';
+import { PROVIDERS, loadLLM, saveLLM, clearLLM, llmReady, ask, TUTOR_SYSTEM } from './llm.js';
+import { esc, badge, buildSummary, buildMoveCard } from './review.js';
 
 const $ = s => document.querySelector(s);
 const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
+const START_FEN = START + ' w KQkq - 0 1';
 const COLORS = ['var(--a1)', 'var(--a2)', 'var(--a3)'];
 const RAW = ['#6f86ff', '#4fbf8f', '#f08a6c'];
 const store = { get(k, d) { try { const v = localStorage.getItem('augur:' + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
@@ -23,7 +27,13 @@ const MODES = {
   analysis: 'Scan a position, explore lines and ask Stockfish for the top 3 moves.',
   pvp: 'Two players, one board. Moves alternate; Stockfish can give a single hint if you allow it.',
   bot: 'Play against Stockfish. Pick a difficulty and your colour.',
+  tutor: 'Play the bot while a tutor explains every move in plain English — yours and the bot\'s.',
+  review: 'Paste a finished game (PGN from chess.com, lichess…) for a full move-by-move review.',
 };
+// per-mode extras
+const T = { entries: [], gen: 0 };                                   // tutor feed
+const R = { status: 'idle', run: 0, rows: [], evals: [], ws: [], counts: { w: {}, b: {} }, acc: { w: 0, b: 0 }, headers: {}, opening: null, speed: store.get('speed', '600') };
+const vsBot = () => S.mode === 'bot' || S.mode === 'tutor';
 const LEVELS = {
   easy: { label: 'Easy', desc: 'Makes plenty of mistakes — good for learning (~1000).', opts: { UCI_LimitStrength: false, 'Skill Level': 1 }, go: 'movetime 200' },
   intermediate: { label: 'Intermediate', desc: 'Solid club player, still beatable (~1700).', opts: { 'Skill Level': 20, UCI_LimitStrength: true, UCI_Elo: 1700 }, go: 'movetime 500' },
@@ -69,7 +79,7 @@ function rebuildBase({ keepHistory = false } = {}) {
   const err = checkPosition(S.base);
   S.valid = !err;
   $('#warn').textContent = err || ''; $('#warn').classList.toggle('hidden', !err);
-  if (!keepHistory) { S.moves = []; S.ply = 0; }
+  if (!keepHistory) { S.moves = []; S.ply = 0; T.entries = []; T.gen++; }
   S.lines = [];
   refresh();
   if (S.valid && autoOn() && !S.edit) analyse();
@@ -77,12 +87,15 @@ function rebuildBase({ keepHistory = false } = {}) {
 
 let batching = false;
 function play(from, to, promotion, byBot = false) {
-  if (S.mode === 'bot' && !byBot && !batching && curFen().split(' ')[1] !== S.bot.human) return false;
+  if (S.mode === 'review') return false;
+  if (vsBot() && !byBot && !batching && curFen().split(' ')[1] !== S.bot.human) return false;
   const g = game();
   let mv;
   try { mv = g.move({ from, to, promotion }); } catch { return false; }
   S.moves = S.moves.slice(0, S.ply);
-  S.moves.push({ san: mv.san, from, to, fen: g.fen() });
+  S.moves.push({ san: mv.san, from, to, promotion: mv.promotion, fen: g.fen() });
+  T.entries.length = Math.min(T.entries.length, S.ply);
+  if (S.mode === 'tutor' && !batching) queueMicrotask(() => coachMove(S.moves.length - 1));
   S.ply++; S.lines = []; S.uncertain = new Set();
   if (batching) return true;
   refresh();
@@ -93,7 +106,7 @@ function goto(ply) { S.ply = Math.max(0, Math.min(S.moves.length, ply)); S.lines
 const autoOn = () => S.mode === 'analysis' && $('#auto').checked;
 /** Engine lines that the current mode lets the player see. */
 const shown = () => (S.mode === 'analysis' ? S.lines.slice(0, 3) : S.mode === 'pvp' && S.hints ? S.lines.slice(0, 1) : []);
-const humanCanMove = () => S.mode !== 'bot' || curFen().split(' ')[1] === S.bot.human;
+const humanCanMove = () => S.mode === 'review' ? false : !vsBot() || curFen().split(' ')[1] === S.bot.human;
 
 // ---------- rendering ----------
 let board;
@@ -107,17 +120,19 @@ function refresh() {
   board.set({
     pieces, orientation: S.orient, edit: S.edit, lastMove: last, check, uncertain: S.ply === 0 ? S.uncertain : new Set(),
     legal: sq => (g && !S.edit && humanCanMove() ? g.moves({ square: sq, verbose: true }) : []),
-    arrows: shown().map((l, i) => ({ from: l.pv[0].slice(0, 2), to: l.pv[0].slice(2, 4), color: RAW[i], width: [15, 11, 8][i], label: String(i + 1) })),
+    badge: plyBadge(),
+    arrows: S.mode === 'review' ? reviewView() : shown().map((l, i) => ({ from: l.pv[0].slice(0, 2), to: l.pv[0].slice(2, 4), color: RAW[i], width: [15, 11, 8][i], label: String(i + 1) })),
   });
   // turn
   const t = $('#turn'); t.classList.toggle('b', turn === 'b');
   const winner = turn === 'w' ? 'Black' : 'White';
   let status = `${turn === 'w' ? 'White' : 'Black'} to move`;
-  if (g && g.isCheckmate()) status = S.mode === 'bot' ? (winner === (S.bot.human === 'w' ? 'White' : 'Black') ? 'Checkmate — you win!' : 'Checkmate — the bot wins') : `Checkmate — ${winner} wins`;
+  if (g && g.isCheckmate()) status = vsBot() ? (winner === (S.bot.human === 'w' ? 'White' : 'Black') ? 'Checkmate — you win!' : 'Checkmate — the bot wins') : `Checkmate — ${winner} wins`;
   else if (g && g.isStalemate()) status = 'Stalemate — draw';
   else if (g && g.isDraw()) status = 'Draw';
   else if (!S.valid) status = 'Position needs fixing';
-  else if (S.mode === 'bot') status = humanCanMove() ? 'Your move' : 'Bot is thinking…';
+  else if (S.mode === 'review') status = S.ply ? `After move ${Math.ceil(S.ply / 2)}${S.ply % 2 ? '' : '…'}` : 'Starting position';
+  else if (vsBot()) status = humanCanMove() ? 'Your move' : 'Bot is thinking…';
   t.querySelector('span').textContent = status;
   t.classList.toggle('over', !!g && g.isGameOver());
   if (g && g.isGameOver() && S.moves.length && S.ply === S.moves.length && S.endShown !== fen) { S.endShown = fen; toast(status, 4000); }
@@ -149,11 +164,12 @@ function renderMoves() {
   for (; i < S.moves.length; i++) {
     const isWhite = startBlack ? i % 2 === 1 : i % 2 === 0;
     if (isWhite) html += `<span class="n">${n}.</span>`;
-    html += `<span class="m ${i + 1 === S.ply ? 'cur' : ''} ${i + 1 > S.ply ? 'future' : ''}" data-ply="${i + 1}">${S.moves[i].san}</span>`;
+    html += `<span class="m ${i + 1 === S.ply ? 'cur' : ''} ${i + 1 > S.ply ? 'future' : ''}" data-ply="${i + 1}">${S.moves[i].san}${badge(clsOf(i))}</span>`;
     if (!isWhite) n++;
   }
   el.innerHTML = html;
-  el.scrollTop = el.scrollHeight;
+  const cur = el.querySelector('.cur');
+  el.scrollTop = cur ? Math.max(0, cur.offsetTop - el.clientHeight / 2) : el.scrollHeight;
 }
 
 function fmtScore(l, turn) {
@@ -164,6 +180,10 @@ function fmtScore(l, turn) {
 }
 function renderLines() {
   const el = $('#lines'), fen = curFen(), turn = fen.split(' ')[1];
+  if (S.mode === 'review') {
+    const ev = R.status === 'done' ? R.evals[S.ply] : null;
+    setEval(ev ? { w: R.ws[S.ply] / 100, txt: fmtWhite(ev, curFen().split(' ')[1]) } : null); return;
+  }
   const lines = shown();
   if (!lines.length) { el.innerHTML = `<li class="empty">${!S.valid ? 'Fix the position first.' : S.mode === 'pvp' ? 'Press Hint when you are stuck.' : 'Ask for suggestions any time — for whichever side is to move.'}</li>`; setEval(null); return; }
   el.innerHTML = lines.map((l, i) => {
@@ -175,7 +195,7 @@ function renderLines() {
   setEval(fmtScore(lines[0], turn));
 }
 function setEval(sc) {
-  if (S.mode !== 'analysis') { $('#evalbar').classList.add('off'); return; }
+  if (S.mode !== 'analysis' && S.mode !== 'review') { $('#evalbar').classList.add('off'); return; }
   $('#evalbar').classList.remove('off');
   $('#evalbar .fill').style.height = sc ? `${(sc.w * 100).toFixed(1)}%` : '50%';
   $('#evaltext').textContent = sc ? sc.txt.replace('+', '') : '';
@@ -203,7 +223,7 @@ function stopEngine() { engine?.stop(); const b = $('#btn-suggest'); if (b) { b.
 let botEngine = null, botJob = null;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 function botTurn() {
-  if (S.mode !== 'bot' || !S.valid || S.edit || S.ply !== S.moves.length) return null;
+  if (!vsBot() || !S.valid || S.edit || S.ply !== S.moves.length) return null;
   const fen = curFen();
   return new Chess(fen).isGameOver() || fen.split(' ')[1] === S.bot.human ? null : fen;
 }
@@ -234,7 +254,7 @@ const botPlayerEl = () => $(S.orient === S.bot.human ? '#pl-top' : '#pl-bot');
 function renderMode(turn) {
   document.querySelectorAll('#seg-mode button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === S.mode)));
   $('#mode-desc').textContent = MODES[S.mode];
-  $('#opts-pvp').classList.toggle('hidden', S.mode !== 'pvp'); $('#opts-bot').classList.toggle('hidden', S.mode !== 'bot');
+  $('#opts-pvp').classList.toggle('hidden', S.mode !== 'pvp'); $('#opts-bot').classList.toggle('hidden', !vsBot());
   $('#hints').checked = S.hints;
   document.querySelectorAll('#seg-level button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === S.bot.level)));
   document.querySelectorAll('#seg-human button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === S.bot.human)));
@@ -247,20 +267,27 @@ function renderMode(turn) {
   $('#eng-ctl').classList.toggle('hidden', S.mode !== 'analysis');
   if (!$('#btn-suggest').disabled) $('#suggest-label').textContent = S.mode === 'pvp' ? 'Show hint' : 'Suggest top 3';
   // player bars: bottom of the screen = S.orient
-  const bot = S.mode === 'bot';
+  const bot = vsBot();
   for (const [el, side] of [[$('#pl-top'), S.orient === 'w' ? 'b' : 'w'], [$('#pl-bot'), S.orient]]) {
     el.classList.toggle('black', side === 'b'); el.classList.toggle('active', turn === side && S.valid);
     const isBot = bot && side !== S.bot.human;
     el.querySelector('b').textContent = isBot ? `Bot · ${LEVELS[S.bot.level].label}` : bot ? 'You' : side === 'w' ? 'White' : 'Black';
     el.querySelector('.sub').textContent = bot ? (side === 'w' ? 'White' : 'Black') : '';
   }
+  $('#card-coach').classList.toggle('hidden', S.mode !== 'tutor'); $('#card-review').classList.toggle('hidden', S.mode !== 'review');
+  $('#card-moves').classList.toggle('hidden', S.mode === 'review' && R.status !== 'done');
+  $('#move-form').classList.toggle('hidden', S.mode === 'review'); $('#move-tip').classList.toggle('hidden', S.mode === 'review');
+  if (S.mode === 'tutor') renderFeed();
+  renderReview();
   $('#move-tip').textContent = bot ? 'Drag a piece or type your move. Take back to try a different line.' : 'Type a move, or drag pieces on the board. Paste a move list or PGN to rebuild a game.';
 }
 function setMode(m) {
   if (m === S.mode) return;
   S.mode = m; store.set('mode', m);
   S.lines = []; stopEngine();
-  if (m === 'bot') S.orient = S.bot.human;
+  if (m === 'bot' || m === 'tutor') S.orient = S.bot.human;
+  if (R.status === 'running') cancelReview();
+  if (m === 'tutor') { T.entries = []; T.gen++; }
   refresh();
 }
 function setHuman(c) {
@@ -283,13 +310,15 @@ function clearScan() {
 /** Back to the starting position. `settings` also restores every preference to its default. */
 function resetState({ settings }) {
   botJob = null; botEngine?.stop(); stopEngine();
+  cancelReview(); R.rows = [];
   clearScan();
   if (settings) {
     S.mode = 'analysis'; S.hints = false; S.bot = { level: 'intermediate', human: 'w' };
     $('#auto').checked = false; $('#think').value = '1500';
-    for (const k of ['mode', 'hints', 'level', 'human', 'orient', 'auto', 'think']) try { localStorage.removeItem('augur:' + k); } catch { /* ignore */ }
+    delete document.documentElement.dataset.theme; $('#btn-theme use').setAttribute('href', matchMedia('(prefers-color-scheme: dark)').matches ? '#i-sun' : '#i-moon');
+    for (const k of ['mode', 'hints', 'level', 'human', 'orient', 'auto', 'think', 'theme', 'speed']) try { localStorage.removeItem('augur:' + k); } catch { /* ignore */ }
   }
-  Object.assign(S, { orient: S.mode === 'bot' ? S.bot.human : 'w', turn: 'w', castle: 'KQkq', placement: START, edit: false, tool: null, lines: [], uncertain: new Set(), endShown: null });
+  Object.assign(S, { orient: vsBot() ? S.bot.human : 'w', turn: 'w', castle: 'KQkq', placement: START, edit: false, tool: null, lines: [], uncertain: new Set(), endShown: null });
   rebuildBase();
 }
 async function resetAll() {
@@ -306,8 +335,279 @@ function takeBack() {
   // back to the last position where it was the human's turn
   let p = S.ply - 1;
   while (p > 0 && S.moves[p - 1].fen.split(' ')[1] !== S.bot.human) p--;
-  S.moves = S.moves.slice(0, Math.max(0, p)); S.ply = S.moves.length; S.lines = [];
+  S.moves = S.moves.slice(0, Math.max(0, p)); S.ply = S.moves.length; S.lines = []; T.entries.length = Math.min(T.entries.length, S.ply);
   refresh();
+}
+
+// ---------- shared analysis (tutor + review) ----------
+let evalEngine = null, evalChain = Promise.resolve();
+const evalCache = new Map();
+/** Serialised Stockfish evaluation of a position; cached, never rejects. */
+function evalFen(fen, ms) {
+  const key = fen + '|' + ms;
+  if (evalCache.has(key)) return evalCache.get(key);
+  const term = terminalEval(fen);
+  const p = term ? Promise.resolve(term) : (evalChain = evalChain.then(() => new Promise(res => {
+    evalEngine ??= new Engine({ multipv: 3 });
+    let fin = false; const done = v => { if (!fin) { fin = true; res(v); } };
+    setTimeout(() => done(summarise(fen, [])), ms + 10000);
+    evalEngine.analyse(fen, ms, (lines, d) => { if (d) done(summarise(fen, lines)); });
+  })));
+  evalCache.set(key, p);
+  return p;
+}
+const uciToSan = (fen, u) => { try { return new Chess(fen).move({ from: u.slice(0, 2), to: u.slice(2, 4), promotion: u[4] }).san; } catch { return u; } };
+function pvToSan(fen, pv = [], n = 6) {
+  const g = new Chess(fen), out = [];
+  for (const u of pv.slice(0, n)) { try { out.push(g.move({ from: u.slice(0, 2), to: u.slice(2, 4), promotion: u[4] }).san); } catch { break; } }
+  return out;
+}
+function movesText(sans, startBlack) {
+  let out = '', n = 1;
+  sans.forEach((m, i) => { const white = startBlack ? i % 2 === 1 : i % 2 === 0; if (white) out += `${n}. `; else if (i === 0) out += `${n}... `; out += m + ' '; if (!white) n++; });
+  return out.trim();
+}
+const pawns = cp => (Math.abs(cp) >= 9000 ? 'a forced mate' : (cp > 0 ? '+' : '') + (cp / 100).toFixed(1));
+/** Everything the LLM needs, all of it verified by Stockfish. `e` is a tutor entry or a review row. */
+function tutorPrompt(e) {
+  const opening = S.base === START_FEN && e.sans ? openingName(e.sans) : null;
+  const alts = e.before.lines.slice(1, 3).map(l => `${uciToSan(e.fenBefore, l.pv[0])} (${pawns(l.type === 'mate' ? (l.value > 0 ? 9999 : -9999) : l.value)})`);
+  return [
+    `Position before the move (FEN): ${e.fenBefore}`,
+    `Game so far: ${movesText(e.sans, S.base.split(' ')[1] === 'b')}`,
+    `${e.who} (${e.side === 'w' ? 'White' : 'Black'}) just played ${e.san}.`,
+    `Stockfish verdict: ${CLASSES[e.cls].label}. Evaluation from the mover's side: ${pawns(e.before.cp)} before the move, ${pawns(-e.after.cp)} after it.`,
+    e.bestSan ? `Stockfish's preferred move was ${e.bestSan}${e.pv?.length ? ` (line: ${e.pv.join(' ')})` : ''}.` : '',
+    alts.length ? `Other good options: ${alts.join(', ')}.` : '',
+    opening ? `Opening: ${opening}.` : '',
+    'Explain this move to the student.',
+  ].filter(Boolean).join('\n');
+}
+const ENGINE_BLURB = { brilliant: 'A brilliant sacrifice.', great: 'The only strong move here.', best: 'The engine\'s top choice.', excellent: 'Nearly as good as the best move.', good: 'A reasonable move.', book: 'A well-known opening move.', inaccuracy: 'Slightly weakens your position.', mistake: 'A real slip.', miss: 'Gave away a chance to take advantage.', blunder: 'A serious error.' };
+const clsOf = i => (S.mode === 'tutor' ? T.entries[i]?.cls : S.mode === 'review' && R.status === 'done' ? R.rows[i]?.cls : null);
+function plyBadge() {
+  const cls = S.ply ? clsOf(S.ply - 1) : null;
+  return cls ? { sq: S.moves[S.ply - 1].to, color: CLASSES[cls].color, glyph: CLASSES[cls].glyph } : null;
+}
+
+// ---------- tutor ----------
+const COACH_MS = 700;
+function coachMove(i) {
+  const mv = S.moves[i]; if (!mv || S.mode !== 'tutor') return;
+  const fenBefore = i ? S.moves[i - 1].fen : S.base, fenAfter = mv.fen, side = fenBefore.split(' ')[1];
+  const human = side === S.bot.human;
+  const entry = { i, san: mv.san, side, human, who: human ? 'The student' : 'The opponent (a bot)', status: 'eval', fenBefore, fenAfter };
+  T.entries[i] = entry; renderFeed();
+  const gen = T.gen, live = () => T.gen === gen && T.entries[i] === entry;
+  (async () => {
+    const [before, after] = await Promise.all([evalFen(fenBefore, COACH_MS), evalFen(fenAfter, COACH_MS)]);
+    if (!live()) return;
+    const sans = S.moves.slice(0, i + 1).map(m => m.san);
+    const j = judge({ before, after, uci: mv.from + mv.to + (mv.promotion || ''), fenBefore, fenAfter, mover: side, prevCls: T.entries[i - 1]?.cls, book: S.base === START_FEN && inBook(sans, i + 1) });
+    Object.assign(entry, j, { before, after, sans, bestSan: before.best ? uciToSan(fenBefore, before.best) : null, pv: pvToSan(fenBefore, before.lines[0]?.pv), evalAfter: fmtWhite(after, fenAfter.split(' ')[1]), status: 'done' });
+    refresh();
+    if (!llmReady()) return;
+    entry.status = 'llm'; renderFeed();
+    try { entry.text = await ask({ system: TUTOR_SYSTEM, user: tutorPrompt(entry) }); entry.status = 'done'; }
+    catch (e) { if (e.name === 'AbortError') return; entry.status = 'error'; entry.err = e.message; }
+    if (live()) renderFeed();
+  })();
+}
+function feedItem(e) {
+  const head = `<div class="fb-h">${badge(e.cls)}<b>${esc(e.san)}</b><span class="who">${e.human ? 'You' : 'Bot'} · ${e.side === 'w' ? 'White' : 'Black'}</span><span class="ev">${esc(e.evalAfter || '')}</span></div>`;
+  if (!e.cls) return `<div class="fb">${head}<div class="fb-b"><span class="dots">Evaluating…</span></div></div>`;
+  const best = !e.isBest && e.bestSan && !['book', 'excellent', 'good'].includes(e.cls) ? ` Better was <b>${esc(e.bestSan)}</b>.` : '';
+  const body = e.text ? `<div class="txt">${esc(e.text)}</div>` : e.status === 'llm' ? '<span class="dots">Tutor is writing…</span>' : e.status === 'error' ? `<div class="err">${esc(e.err)}</div>` : '';
+  return `<div class="fb">${head}<div class="fb-b"><div class="eng"><b style="color:${CLASSES[e.cls].color}">${CLASSES[e.cls].label}.</b> ${ENGINE_BLURB[e.cls]}${best}</div>${body}</div></div>`;
+}
+function renderFeed() {
+  const el = $('#coach-feed'), note = $('#coach-note'), ok = llmReady();
+  note.classList.toggle('hidden', ok);
+  if (!ok) note.innerHTML = 'Showing engine feedback only. <button class="linkish" data-open-settings type="button">Add an API key</button> for plain-English explanations of every move.';
+  const items = T.entries.filter(Boolean);
+  el.innerHTML = items.length ? items.slice().reverse().map(feedItem).join('') : '<div class="empty">Make a move — the tutor will explain it here.</div>';
+}
+
+// ---------- game review ----------
+function tokenise(text) {
+  const body = text.replace(/\[[^\]]*\]/g, ' ').replace(/\{[^}]*\}/g, ' ').replace(/;[^\n]*/g, ' ');
+  let flat = body, prev; do { prev = flat; flat = flat.replace(/\([^()]*\)/g, ' '); } while (flat !== prev);
+  return flat.replace(/\$\d+/g, ' ').replace(/\d+\.(\.\.)?/g, ' ').split(/\s+/)
+    .map(t => t.replace(/[!?+#]+$/g, '').replace(/0/g, 'O')).filter(t => t && !/^(1-O|O-1|1\/2-1\/2|\*)$/.test(t));
+}
+/** PGN (chess.com / lichess / any app) or a bare move list -> {headers, startFen, moves}. Throws a readable Error. */
+function parseGame(raw) {
+  let text = raw.trim();
+  if (!text) throw new Error('Paste a game first.');
+  if (/^https?:\/\/\S+$/i.test(text)) throw new Error('That is a link — paste the PGN instead (chess.com: Share → PGN → copy).');
+  text = text.split(/\r?\n\s*\r?\n(?=\[Event )/)[0];   // multi-game files: first game
+  try {
+    const g = new Chess(); g.loadPgn(text);
+    const hist = g.history({ verbose: true });
+    if (hist.length) return { headers: g.getHeaders(), startFen: hist[0].before, moves: hist.map(m => ({ san: m.san, from: m.from, to: m.to, promotion: m.promotion, fen: m.after })) };
+  } catch { /* fall through to the tolerant parser */ }
+  const fenTag = text.match(/\[FEN\s+"([^"]+)"\]/), startFen = fenTag ? fenTag[1] : START_FEN;
+  const toks = tokenise(text);
+  if (!toks.length) throw new Error('Could not find any moves in that text.');
+  let g; try { g = new Chess(startFen); } catch { throw new Error('The PGN\'s starting position is invalid.'); }
+  const moves = [];
+  for (const t of toks) {
+    try { const m = g.move(t); moves.push({ san: m.san, from: m.from, to: m.to, promotion: m.promotion, fen: g.fen() }); }
+    catch { if (!moves.length) throw new Error(`Could not read the move "${t}". Is this a standard PGN?`); break; }
+  }
+  return { headers: {}, startFen, moves, partial: moves.length < toks.length };
+}
+function cancelReview() { R.run++; R.status = 'idle'; }
+async function startReview(game) {
+  if (game.moves.length < 2) throw new Error('That game has fewer than 2 moves — nothing to review.');
+  const run = ++R.run, ms = +R.speed;
+  Object.assign(S, { base: game.startFen, moves: game.moves, ply: 0, valid: true, edit: false, lines: [], uncertain: new Set() });
+  const f = game.startFen.split(' '); Object.assign(S, { placement: f[0], turn: f[1], castle: f[2] === '-' ? '' : f[2] });
+  R.status = 'running'; R.headers = game.headers || {}; R.rows = []; refresh();
+  const fens = [game.startFen, ...game.moves.map(m => m.fen)], evals = [];
+  const bar = $('#rv-bar'), txt = $('#rv-prog-txt');
+  for (let k = 0; k < fens.length; k++) {
+    bar.style.width = `${(k / fens.length) * 100}%`; txt.textContent = `Analysing position ${k + 1} of ${fens.length}…`;
+    evals.push(await evalFen(fens[k], ms));
+    if (R.run !== run) return;
+  }
+  computeReview(game, fens, evals);
+  R.status = 'done'; S.ply = 0; refresh();
+  toast(game.partial ? 'Review ready — stopped at the first move it could not read' : 'Review ready', 3000);
+}
+function computeReview(game, fens, evals) {
+  const N = game.moves.length, rows = [], standard = game.startFen === START_FEN;
+  const sans = game.moves.map(m => m.san);
+  for (let i = 0; i < N; i++) {
+    const mv = game.moves[i], side = fens[i].split(' ')[1];
+    const j = judge({ before: evals[i], after: evals[i + 1], uci: mv.from + mv.to + (mv.promotion || ''), fenBefore: fens[i], fenAfter: fens[i + 1], mover: side, prevCls: rows[i - 1]?.cls, book: standard && inBook(sans, i + 1) });
+    rows.push({ ...j, side, san: mv.san, who: 'The player', best: evals[i].best, before: evals[i], after: evals[i + 1], fenBefore: fens[i], fenAfter: fens[i + 1], sans: sans.slice(0, i + 1),
+      bestSan: evals[i].best ? uciToSan(fens[i], evals[i].best) : null, pv: pvToSan(fens[i], evals[i].lines[0]?.pv),
+      evalAfter: fmtWhite(evals[i + 1], fens[i + 1].split(' ')[1]), evalBest: fmtWhite(evals[i], side) });
+  }
+  const counts = { w: {}, b: {} }, sum = { w: 0, b: 0 }, n = { w: 0, b: 0 };
+  for (const r of rows) { counts[r.side][r.cls] = (counts[r.side][r.cls] || 0) + 1; sum[r.side] += r.acc; n[r.side]++; }
+  Object.assign(R, { rows, evals, counts, acc: { w: n.w ? sum.w / n.w : 100, b: n.b ? sum.b / n.b : 100 }, ws: fens.map((f, k) => whiteWin(evals[k], f.split(' ')[1])), opening: standard ? openingName(sans) : null });
+}
+function renderReview() {
+  const on = S.mode === 'review';
+  $('#card-rmove').classList.toggle('hidden', !(on && R.status === 'done'));
+  if (!on) return;
+  $('#rv-input').classList.toggle('hidden', R.status !== 'idle');
+  $('#rv-progress').classList.toggle('hidden', R.status !== 'running');
+  $('#rv-summary').classList.toggle('hidden', R.status !== 'done');
+  $('#btn-rv-new').classList.toggle('hidden', R.status === 'idle');
+  document.querySelectorAll('#seg-speed button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === R.speed)));
+  if (R.status !== 'done') return;
+  $('#rv-summary').innerHTML = buildSummary(R, S.ply);
+  const i = S.ply - 1, row = R.rows[i];
+  $('#card-rmove').innerHTML = buildMoveCard({ row, ply: S.ply, san: S.moves[i]?.san, side: row?.side, bestSan: row?.bestSan, evalAfter: row?.evalAfter, evalBest: row?.evalBest, text: row?.text, busy: row?.busy, err: row?.err, canExplain: llmReady(), opening: R.opening });
+}
+function reviewView() {
+  const row = S.ply ? R.rows[S.ply - 1] : null, arrows = [];
+  if (row && !row.isBest && row.best && !['book', 'excellent', 'good'].includes(row.cls)) arrows.push({ from: row.best.slice(0, 2), to: row.best.slice(2, 4), color: '#4fbf8f', width: 12, label: '' });
+  return arrows;
+}
+async function explainRow(i) {
+  const row = R.rows[i]; if (!row || row.busy) return;
+  row.busy = true; row.err = null; renderReview();
+  try { row.text = await ask({ system: TUTOR_SYSTEM, user: tutorPrompt(row) }); } catch (e) { row.err = e.message; }
+  row.busy = false; renderReview();
+}
+function jumpMoment(dir) {
+  const bad = ['mistake', 'blunder', 'miss'], idx = R.rows.map((r, i) => (bad.includes(r.cls) ? i + 1 : 0)).filter(Boolean);
+  const t = dir > 0 ? idx.find(p => p > S.ply) : [...idx].reverse().find(p => p < S.ply);
+  if (t) goto(t); else toast(dir > 0 ? 'No more mistakes ahead' : 'No earlier mistakes');
+}
+function wireReview() {
+  const warn = m => { const w = $('#rv-warn'); w.textContent = m || ''; w.classList.toggle('hidden', !m); };
+  const run = async game => { warn(''); try { await startReview(game); } catch (e) { R.status = 'idle'; refresh(); warn(e.message); } };
+  $('#btn-rv-run').addEventListener('click', () => { let g; try { g = parseGame($('#rv-pgn').value); } catch (e) { warn(e.message); return; } run(g); });
+  $('#btn-rv-file').addEventListener('click', () => $('#rv-file').click());
+  $('#rv-file').addEventListener('change', async e => { const f = e.target.files[0]; if (f) { $('#rv-pgn').value = await f.text(); warn(''); } e.target.value = ''; });
+  $('#btn-rv-current').addEventListener('click', () => {
+    if (S.moves.length < 2) { warn('Play some moves first, or paste a game.'); return; }
+    run({ headers: {}, startFen: S.base, moves: S.moves.map(m => ({ ...m })) });
+  });
+  $('#btn-rv-new').addEventListener('click', () => { cancelReview(); refresh(); });
+  $('#btn-rv-cancel').addEventListener('click', () => { cancelReview(); refresh(); });
+  $('#seg-speed').addEventListener('click', e => { const b = e.target.closest('button[data-v]'); if (b) { R.speed = b.dataset.v; store.set('speed', R.speed); renderReview(); } });
+  $('#rv-summary').addEventListener('click', e => {
+    const g = e.target.closest('#rv-graph');
+    if (g) { const r = g.getBoundingClientRect(); goto(Math.round((e.clientX - r.left) / r.width * S.moves.length)); return; }
+    const m = e.target.closest('[data-moment]'); if (m) jumpMoment(+m.dataset.moment);
+  });
+  $('#card-rmove').addEventListener('click', e => { if (e.target.closest('[data-explain]')) explainRow(S.ply - 1); });
+}
+
+// ---------- custom select ----------
+/** Replace a native <select> with a styled listbox; the select stays the source of truth (value + 'change'). */
+function enhanceSelect(sel, { small = false } = {}) {
+  const wrap = document.createElement('div'); wrap.className = 'sel' + (small ? ' sm' : '');
+  sel.before(wrap); wrap.appendChild(sel); sel.tabIndex = -1;
+  const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'sel-btn'; btn.setAttribute('aria-haspopup', 'listbox');
+  if (sel.title) btn.title = sel.title;
+  if (sel.getAttribute('aria-label')) btn.setAttribute('aria-label', sel.getAttribute('aria-label'));
+  const menu = document.createElement('ul'); menu.className = 'sel-menu hidden'; menu.setAttribute('role', 'listbox');
+  wrap.append(btn, menu);
+  let hl = -1;
+  const items = () => [...menu.children];
+  const paint = () => {
+    const opts = [...sel.options];
+    menu.innerHTML = opts.map((o, i) => `<li role="option" data-i="${i}" aria-selected="${o.value === sel.value}">${esc(o.textContent)}</li>`).join('');
+    btn.textContent = sel.selectedOptions[0]?.textContent || '';
+  };
+  const mark = i => { hl = i; items().forEach((li, k) => li.classList.toggle('hl', k === i)); items()[i]?.scrollIntoView({ block: 'nearest' }); };
+  const open = () => { paint(); menu.classList.remove('hidden'); wrap.classList.add('open'); btn.setAttribute('aria-expanded', 'true'); mark(sel.selectedIndex); };
+  const close = () => { menu.classList.add('hidden'); wrap.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); };
+  const choose = i => { const v = sel.options[i]?.value; close(); btn.focus(); if (v !== undefined && v !== sel.value) { sel.value = v; sel.dispatchEvent(new Event('change', { bubbles: true })); } };
+  btn.addEventListener('click', () => (menu.classList.contains('hidden') ? open() : close()));
+  btn.addEventListener('keydown', e => {
+    const isOpen = !menu.classList.contains('hidden'), n = sel.options.length;
+    if (['ArrowDown', 'ArrowUp'].includes(e.key)) { e.preventDefault(); if (!isOpen) open(); else mark((hl + (e.key === 'ArrowDown' ? 1 : n - 1)) % n); }
+    else if ((e.key === 'Enter' || e.key === ' ') && isOpen) { e.preventDefault(); choose(hl); }
+    else if (e.key === 'Escape' && isOpen) { e.preventDefault(); e.stopPropagation(); close(); }
+    else if (e.key === 'Tab') close();
+  });
+  menu.addEventListener('mousedown', e => e.preventDefault());
+  menu.addEventListener('click', e => { const li = e.target.closest('li[data-i]'); if (li) choose(+li.dataset.i); });
+  document.addEventListener('click', e => { if (!wrap.contains(e.target)) close(); });
+  // keep the label in sync when code sets sel.value or replaces options
+  const proto = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value');
+  Object.defineProperty(sel, 'value', { get() { return proto.get.call(this); }, set(v) { proto.set.call(this, v); paint(); } });
+  paint();
+}
+
+// ---------- settings (AI tutor key) ----------
+function syncSettingsForm() {
+  const id = $('#llm-provider').value, p = PROVIDERS[id];
+  $('#f-base').classList.toggle('hidden', id !== 'custom');
+  $('#llm-base').placeholder = p.base; $('#llm-model').placeholder = p.model || 'model name';
+  $('#llm-key').placeholder = id === 'anthropic' ? 'sk-ant-…' : id === 'custom' ? 'optional for local servers' : 'API key';
+}
+function settingsForm() { return { provider: $('#llm-provider').value, key: $('#llm-key').value.trim(), model: $('#llm-model').value.trim(), base: $('#llm-base').value.trim() }; }
+function setLlmStatus(msg, kind) { const el = $('#llm-status'); el.textContent = msg || ''; el.className = 'small ' + (kind || 'muted'); el.classList.toggle('hidden', !msg); }
+function openSettings() {
+  const c = loadLLM();
+  $('#llm-provider').value = c.provider; $('#llm-key').value = c.key; $('#llm-model').value = c.model; $('#llm-base').value = c.base;
+  $('#llm-key').type = 'password'; $('#btn-key-show').textContent = 'Show';
+  syncSettingsForm(); setLlmStatus(llmReady(c) ? 'A key is saved in this browser.' : ''); $('#settings').showModal();
+}
+function wireSettings() {
+  $('#llm-provider').innerHTML = Object.entries(PROVIDERS).map(([k, p]) => `<option value="${k}">${p.label}</option>`).join('');
+  $('#llm-provider').addEventListener('change', () => { $('#llm-model').value = ''; syncSettingsForm(); });
+  $('#btn-settings').addEventListener('click', openSettings);
+  $('#btn-coach-settings').addEventListener('click', openSettings);
+  document.addEventListener('click', e => { if (e.target.closest('[data-open-settings]')) openSettings(); });
+  $('#btn-key-show').addEventListener('click', () => { const k = $('#llm-key'), show = k.type === 'password'; k.type = show ? 'text' : 'password'; $('#btn-key-show').textContent = show ? 'Hide' : 'Show'; });
+  $('#btn-llm-save').addEventListener('click', () => { saveLLM(settingsForm()); $('#settings').close(); toast(llmReady() ? 'AI tutor ready' : 'Saved'); renderFeed(); renderReview(); });
+  $('#btn-llm-clear').addEventListener('click', () => { clearLLM(); $('#llm-key').value = ''; $('#llm-model').value = ''; $('#llm-base').value = ''; setLlmStatus('Key removed.'); renderFeed(); renderReview(); });
+  $('#btn-llm-test').addEventListener('click', async () => {
+    const cfg = settingsForm(); if (!llmReady(cfg)) { setLlmStatus(cfg.provider === 'custom' ? 'Enter a model name first.' : 'Enter an API key first.', 'err'); return; }
+    setLlmStatus('Testing…');
+    try { await ask({ system: 'Reply with the single word: ok', user: 'ping', maxTokens: 16 }, cfg); setLlmStatus('Connected — the provider accepted the request.', 'ok'); }
+    catch (e) { setLlmStatus(e.message, 'err'); }
+  });
 }
 
 // ---------- vision ----------
@@ -330,7 +630,7 @@ async function scan(blob) {
 }
 async function read(detectOrientation) {
   S.grid = classifyBoard(S.img, S.box);
-  if (detectOrientation) { S.orient = guessFlipped(S.grid) ? 'b' : 'w'; S.turn = S.orient; S.castle = 'KQkq'; if (S.mode === 'bot') S.bot.human = S.orient; }
+  if (detectOrientation) { S.orient = guessFlipped(S.grid) ? 'b' : 'w'; S.turn = S.orient; S.castle = 'KQkq'; if (vsBot()) S.bot.human = S.orient; }
   S.uncertain = new Set();
   const flip = S.orient === 'b';
   S.grid.forEach((row, r) => row.forEach((c, f) => { if (c.conf < 0.8) S.uncertain.add(flip ? 'abcdefgh'[7 - f] + (r + 1) : 'abcdefgh'[f] + (8 - r)); }));
@@ -411,7 +711,7 @@ function onEdit(sq, action, to) {
 function init() {
   board = new Board($('#board'), { onMove: play, onEdit, editTool: () => S.tool });
   buildPalette();
-  S.orient = S.mode === 'bot' ? S.bot.human : store.get('orient', 'w'); $('#auto').checked = store.get('auto', false); $('#think').value = store.get('think', '1500');
+  S.orient = vsBot() ? S.bot.human : store.get('orient', 'w'); $('#auto').checked = store.get('auto', false); $('#think').value = store.get('think', '1500');
   rebuildBase();
 
   // file / paste / drop
@@ -422,6 +722,7 @@ function init() {
     if (it) { e.preventDefault(); scan(it.getAsFile()); }
     else if (document.activeElement === $('#fen')) return;
     else if (document.activeElement?.closest?.('input, textarea')) return;
+    else if (S.mode === 'review' && R.status === 'idle') { e.preventDefault(); $('#rv-pgn').value = e.clipboardData.getData('text'); toast('Game pasted — press Analyse'); }
     else {
       const txt = e.clipboardData.getData('text');
       const r = parsePositionText(txt);
@@ -467,7 +768,14 @@ function init() {
   $('#auto').addEventListener('change', e => { store.set('auto', e.target.checked); if (e.target.checked) analyse(); });
   $('#think').addEventListener('change', e => store.set('think', e.target.value));
   $('#btn-help').addEventListener('click', () => $('#help').showModal());
+  wireReview(); wireSettings();
+  enhanceSelect($('#llm-provider')); enhanceSelect($('#think'), { small: true });
+  document.addEventListener('click', e => { const c = e.target.closest('[data-close]'); if (c) c.closest('dialog').close(); });
+  $('#settings').addEventListener('click', e => { const r = e.currentTarget.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) e.currentTarget.close(); });
   $('#btn-reset-all').addEventListener('click', resetAll);
+  const paintTheme = () => { const dark = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches; $('#btn-theme use').setAttribute('href', dark ? '#i-sun' : '#i-moon'); };
+  $('#btn-theme').addEventListener('click', () => { const dark = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches; const t = dark ? 'light' : 'dark'; document.documentElement.dataset.theme = t; store.set('theme', t); paintTheme(); });
+  paintTheme();
   $('#btn-new').addEventListener('click', newGame);
   $('#btn-takeback').addEventListener('click', takeBack);
   $('#seg-mode').addEventListener('click', e => { const b = e.target.closest('button[data-v]'); if (b) setMode(b.dataset.v); });
@@ -510,12 +818,22 @@ function init() {
     else if (k === 'Escape' && S.edit) toggleEdit(false);
   });
 
-  // engine + model
+  // engine + model -> one status indicator
+  const st = { model: 'loading', engine: 'loading', threads: 1 };
+  const paint = () => {
+    const el = $('#status'), all = Object.values({ m: st.model, e: st.engine });
+    const state = all.includes('err') ? 'err' : all.every(v => v === 'ok') ? 'ok' : 'loading';
+    el.className = 'status ' + state;
+    el.querySelector('span').textContent = state === 'ok' ? 'Ready' : state === 'err' ? 'Problem' : 'Loading…';
+    const d = v => ({ ok: 'ready', err: 'failed to load', loading: 'loading…' }[v]);
+    el.title = `Vision model: ${d(st.model)}\nStockfish 19 lite: ${d(st.engine)}${st.engine === 'ok' ? (st.threads > 1 ? ` (${st.threads} threads)` : ' (1 thread)') : ''}`;
+  };
+  paint();
   try {
     engine = new Engine();
-    engine.ready.then(() => { const p = $('#pill-engine'); p.classList.add('ok'); p.lastChild.textContent = engine.threads > 1 ? `stockfish ×${engine.threads}` : 'stockfish'; p.title = engine.threads > 1 ? `Stockfish 19 lite, ${engine.threads} threads` : 'Stockfish 19 lite, single thread'; });
-  } catch (e) { $('#pill-engine').classList.add('err'); }
-  modelReady = loadModel().then(() => $('#pill-model').classList.add('ok')).catch(() => { $('#pill-model').classList.add('err'); toast('Vision model failed to load'); });
+    engine.ready.then(() => { st.engine = 'ok'; st.threads = engine.threads; paint(); });
+  } catch (e) { st.engine = 'err'; paint(); }
+  modelReady = loadModel().then(() => { st.model = 'ok'; paint(); }).catch(() => { st.model = 'err'; paint(); toast('Vision model failed to load'); });
 
   if ('serviceWorker' in navigator && import.meta.env.PROD) navigator.serviceWorker.register('./sw.js').catch(() => {});
 }
@@ -525,10 +843,7 @@ function init() {
 function importMoves(text) {
   const fenTag = text.match(/\[FEN\s+"([^"]+)"\]/);
   const fullGame = !!fenTag || /\[\w+\s+"/.test(text) || /^\s*1\.(?!\.)/.test(text);
-  const body = text.replace(/\[[^\]]*\]/g, ' ').replace(/\{[^}]*\}/g, ' ').replace(/;[^\n]*/g, ' ');
-  let flat = body, prev; do { prev = flat; flat = flat.replace(/\([^()]*\)/g, ' '); } while (flat !== prev);
-  const toks = flat.replace(/\$\d+/g, ' ').replace(/\d+\.(\.\.)?/g, ' ').split(/\s+/)
-    .map(t => t.replace(/[!?+#]+$/g, '').replace(/0/g, 'O')).filter(t => t && !/^(1-O|O-1|1\/2-1\/2|\*)$/.test(t));
+  const toks = tokenise(text);
   if (!toks.length) return null;
   const snapshot = { placement: S.placement, turn: S.turn, castle: S.castle, moves: S.moves, ply: S.ply, base: S.base };
   if (fullGame) {

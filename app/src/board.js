@@ -5,7 +5,7 @@ export const pieceSrc = p => `./pieces/${p === p.toUpperCase() ? 'w' : 'b'}${p.t
 export class Board {
   constructor(el, handlers) {
     this.el = el; this.h = handlers;
-    this.state = { pieces: {}, orientation: 'w', legal: () => [], lastMove: null, check: null, arrows: [], edit: false, uncertain: new Set() };
+    this.state = { pieces: {}, orientation: 'w', legal: () => [], lastMove: null, check: null, arrows: [], badge: null, edit: false, uncertain: new Set() };
     this.sel = null; this.drag = null;
     el.classList.add('board');
     el.innerHTML = '<div class="squares"></div><div class="pieces"></div><svg class="arrows" viewBox="0 0 800 800"></svg><div class="promo hidden"></div>';
@@ -60,7 +60,12 @@ export class Board {
       const img = document.createElement('img'); img.src = pieceSrc(s.pieces[this.drag.sq]); img.className = 'pc floating';
       img.style.left = this.drag.x + 'px'; img.style.top = this.drag.y + 'px'; this.pcEl.appendChild(img); this.drag.img = img;
     }
-    this.arEl.innerHTML = s.arrows.map(a => this._arrow(a)).join('');
+    this.arEl.innerHTML = s.arrows.map(a => this._arrow(a)).join('') + this._badge(s.badge);
+  }
+  _badge(bd) {
+    if (!bd) return '';
+    const [c, r] = this._xy(bd.sq), x = c * 100 + 84, y = r * 100 + 16;
+    return `<g><circle cx="${x}" cy="${y}" r="17" fill="${bd.color}" stroke="#fff" stroke-width="2.5"/><text x="${x}" y="${y + 6}" text-anchor="middle" font-size="${bd.glyph.length > 1 ? 16 : 20}" font-weight="800" fill="#fff" font-family="system-ui,sans-serif">${bd.glyph}</text></g>`;
   }
   _arrow({ from, to, color, width, label }) {
     const [c1, r1] = this._xy(from), [c2, r2] = this._xy(to);
