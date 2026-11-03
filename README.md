@@ -49,7 +49,7 @@ screenshot ──► board detector ──► 64 tiles ──► tiny CNN (≈40
 | **Player vs Player** | two humans, one board. optional **hints** (off by default): Stockfish shows a single suggested move on request. |
 | **Play the bot** | Stockfish at three levels, *Easy* (~1000), *Intermediate* (~1700, Elo-limited), *Expert* (full strength). pick your colour, take moves back. |
 | **Tutor lesson** | play the bot while a tutor explains every move (yours and the bot's) in plain English. each move is graded (best / good / inaccuracy / mistake / blunder…) by Stockfish; the wording comes from an LLM using **your own API key** (Anthropic, OpenAI, Gemini, OpenRouter or any OpenAI-compatible/local endpoint). without a key you still get the engine's verdict and the better move. |
-| **Game review** | paste a PGN exported from chess.com, lichess or any app (or open a `.pgn`, or review the game you just played). you get accuracy for both sides, an eval graph, a classification table (brilliant → blunder), the opening name, "previous / next mistake" navigation, a best-move arrow plus badge on the board, and an optional "explain this move" via the AI tutor. |
+| **Game review** | paste a PGN exported from chess.com, lichess or any app (or open a `.pgn`, or review the game you just played). you get accuracy for both sides, an eval graph, a classification table (brilliant → blunder), the opening name, "previous / next mistake" navigation, a best-move arrow plus badge on the board, and an optional "explain this move" via the AI tutor. analysis runs in parallel on a pool of Stockfish workers with a depth limit, so a 35-move game takes about 1 to 2 seconds on a typical laptop (Fast ~1 s, Standard ~1.5 s, Deep ~7 s). |
 
 settings (gear icon):
 

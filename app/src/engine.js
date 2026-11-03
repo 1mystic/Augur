@@ -1,11 +1,11 @@
 // Stockfish (WASM, lite) wrapper. One instance = one worker.
 // `multipv` lines for analysis; `single` forces the single-thread build (used by the bot).
 export class Engine {
-  constructor({ multipv = 3, single = false } = {}) {
+  constructor({ multipv = 3, single = false, hash = 0 } = {}) {
     // multi-threaded build when the page is cross-origin isolated (native app, dev server, COOP/COEP hosts)
     const cores = navigator.hardwareConcurrency || 1;
     this.threads = !single && self.crossOriginIsolated && cores > 1 ? Math.min(8, Math.max(2, cores - 1)) : 1;
-    this.multipv = multipv; this.options = {};
+    this.multipv = multipv; this.options = {}; this.hash = hash;
     this.ready = new Promise(res => (this._onReady = res));
     this.searching = false; this.pending = null; this.lines = []; this.cb = null;
     this._boot();
@@ -16,7 +16,7 @@ export class Engine {
     this.w.onerror = () => { if (this.threads > 1) { this.w.terminate(); this.threads = 1; this._boot(); } };
     this.w.postMessage('uci');
     if (this.threads > 1) this.w.postMessage('setoption name Threads value ' + this.threads);
-    this.w.postMessage('setoption name Hash value ' + (this.threads > 1 ? 64 : 32));
+    this.w.postMessage('setoption name Hash value ' + (this.hash || (this.threads > 1 ? 64 : 32)));
     this.w.postMessage('setoption name MultiPV value ' + this.multipv);
     for (const [k, v] of Object.entries(this.options)) this.w.postMessage(`setoption name ${k} value ${v}`);
     this.w.postMessage('isready');

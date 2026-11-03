@@ -34,7 +34,9 @@ const MODES = {
 };
 // per-mode extras
 const T = { entries: [], gen: 0 };                                   // tutor feed
-const R = { status: 'idle', run: 0, rows: [], evals: [], ws: [], counts: { w: {}, b: {} }, acc: { w: 0, b: 0 }, headers: {}, opening: null, speed: store.get('speed', '600') };
+const R = { status: 'idle', run: 0, rows: [], evals: [], ws: [], counts: { w: {}, b: {} }, acc: { w: 0, b: 0 }, headers: {}, opening: null, speed: ['fast', 'std', 'deep'].includes(store.get('speed')) ? store.get('speed') : 'std' };
+// depth-limited (not time-limited): easy positions finish in a few ms, so reviews are quick; movetime is only a safety cap
+const SPEEDS = { fast: 'depth 10 movetime 1200', std: 'depth 13 movetime 2500', deep: 'depth 16 movetime 5000' };
 const vsBot = () => S.mode === 'bot' || S.mode === 'tutor';
 const LEVELS = {
   easy: { label: 'Easy', desc: 'Makes plenty of mistakes, good for learning (~1000).', opts: { UCI_LimitStrength: false, 'Skill Level': 1 }, go: 'movetime 200' },
@@ -360,6 +362,27 @@ function evalFen(fen, ms) {
   evalCache.set(key, p);
   return p;
 }
+/** Evaluate many positions in parallel on a pool of single-thread Stockfish workers. */
+let pool = [];
+async function evalBatch(fens, go, onTick, stopped) {
+  const n = Math.min(Math.max(1, Math.min(8, (navigator.hardwareConcurrency || 2) - 1)), fens.length);
+  while (pool.length < n) pool.push(new Engine({ multipv: 2, single: true, hash: 16 }));
+  const out = new Array(fens.length); let next = 0, done = 0;
+  await Promise.all(pool.slice(0, n).map(async eng => {
+    while (!stopped()) {
+      const i = next++; if (i >= fens.length) break;
+      const fen = fens[i], key = fen + '|b|' + go, term = terminalEval(fen);
+      out[i] = term || evalCache.get(key) || await new Promise(res => {
+        let fin = false; const finish = v => { if (!fin) { fin = true; res(v); } };
+        setTimeout(() => finish(summarise(fen, [])), 20000);
+        eng.analyse(fen, go, (lines, d) => { if (d) finish(summarise(fen, lines)); });
+      });
+      if (!term) evalCache.set(key, out[i]);
+      onTick(++done);
+    }
+  }));
+  return out;
+}
 const uciToSan = (fen, u) => { try { return new Chess(fen).move({ from: u.slice(0, 2), to: u.slice(2, 4), promotion: u[4] }).san; } catch { return u; } };
 function pvToSan(fen, pv = [], n = 6) {
   const g = new Chess(fen), out = [];
@@ -466,17 +489,14 @@ function parseGame(raw) {
 function cancelReview() { R.run++; R.status = 'idle'; }
 async function startReview(game) {
   if (game.moves.length < 2) throw new Error('That game has fewer than 2 moves, nothing to review.');
-  const run = ++R.run, ms = +R.speed;
+  const run = ++R.run;
   Object.assign(S, { base: game.startFen, moves: game.moves, ply: 0, valid: true, edit: false, lines: [], uncertain: new Set() });
   const f = game.startFen.split(' '); Object.assign(S, { placement: f[0], turn: f[1], castle: f[2] === '-' ? '' : f[2] });
   R.status = 'running'; R.headers = game.headers || {}; R.rows = []; refresh();
-  const fens = [game.startFen, ...game.moves.map(m => m.fen)], evals = [];
+  const fens = [game.startFen, ...game.moves.map(m => m.fen)];
   const bar = $('#rv-bar'), txt = $('#rv-prog-txt');
-  for (let k = 0; k < fens.length; k++) {
-    bar.style.width = `${(k / fens.length) * 100}%`; txt.textContent = `Analysing position ${k + 1} of ${fens.length}…`;
-    evals.push(await evalFen(fens[k], ms));
-    if (R.run !== run) return;
-  }
+  const evals = await evalBatch(fens, SPEEDS[R.speed], k => { bar.style.width = `${(k / fens.length) * 100}%`; txt.textContent = `Analysing position ${k} of ${fens.length}…`; }, () => R.run !== run);
+  if (R.run !== run) return;
   computeReview(game, fens, evals);
   R.status = 'done'; S.ply = 0; refresh();
   toast(game.partial ? 'Review ready, stopped at the first move it could not read' : 'Review ready', 3000);
