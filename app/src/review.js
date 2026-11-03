@@ -61,25 +61,31 @@ function phaseTable(R) {
   return `<table class="ctable phase"><tbody><tr><td class="muted">Accuracy by phase</td><td>White</td><td>Black</td></tr>${P.map(ph => `<tr><td>${ph[0].toUpperCase() + ph.slice(1)}</td><td>${cell('w', ph)}</td><td>${cell('b', ph)}</td></tr>`).join('')}</tbody></table>`;
 }
 
-export function buildMoveCard({ row, ply, san, side, bestSan, evalAfter, evalBest, text, busy, err, canExplain, template, chips, opening, pending }) {
-  if (!row && pending) return `<div class="card-h"><h2>Move analysis</h2></div><div class="card-b"><div class="dots muted">Still analysing this move…</div></div>`;
+const GLYPH = { brilliant: '!!', great: '!', inaccuracy: '?!', mistake: '?', miss: '?', blunder: '??' };
+/** "18... Qxd4??" style title for move index i (0-based) of a game starting from `baseFen`. */
+export function moveTitle(san, i, baseFen, cls) {
+  const f = baseFen.split(' '), blackFirst = f[1] === 'b', full = +f[5] || 1;
+  const k = i + (blackFirst ? 1 : 0), num = full + Math.floor(k / 2), black = k % 2 === 1;
+  return `${num}${black ? '...' : '.'} ${san}${GLYPH[cls] || ''}`;
+}
+/** The focused move card used by the tutor and the review. */
+export function lessonCard({ kicker, meta, title, cls, chips, body, tip, footer }) {
+  const c = CLASSES[cls];
+  return `<div class="lesson" style="--c:${c?.color || 'var(--accent)'}">
+    <div class="lesson-head"><div><span class="kicker">${esc(kicker)}</span><div class="lesson-title">${esc(title)}</div></div>${meta ? `<span class="muted small">${meta}</span>` : ''}</div>
+    ${c || chips ? `<div class="pills">${c ? `<span class="pill" style="color:${c.color}">${c.label}</span>` : ''}${chips || ''}</div>` : ''}
+    ${body ? `<div class="callout">${body}</div>` : ''}
+    ${tip ? `<div class="tipbox"><svg class="ic"><use href="#i-bulb"/></svg><span>${tip}</span></div>` : ''}
+    ${footer || ''}
+  </div>`;
+}
+
+export function buildMoveCard({ row, ply, title, evalAfter, text, busy, err, canExplain, template, tip, chips, opening, pending }) {
+  if (!row && pending) return `<div class="card-b">${lessonCard({ kicker: 'Move analysis', title: title || '', body: '<span class="dots">Still analysing this move…</span>' })}</div>`;
   if (!row) {
-    return `<div class="card-h"><h2>Move analysis</h2></div><div class="card-b"><div class="rm-top"><b>${ply === 0 ? 'Starting position' : 'Final position'}</b></div>
-      <p class="muted small" style="margin:0">${opening ? esc(opening) + ' · ' : ''}Step through the game with ← → or click a point on the graph.</p></div>`;
+    return `<div class="card-b">${lessonCard({ kicker: 'Move analysis', title: ply === 0 ? 'Starting position' : 'Final position', body: `${opening ? `<b>${esc(opening)}</b>. ` : ''}Step through the game with ← → or click a point on the graph or a move in the timeline.` })}</div>`;
   }
-  const c = CLASSES[row.cls];
-  const verdict = {
-    brilliant: 'a brilliant move', great: 'a great move', best: 'the best move', excellent: 'an excellent move', good: 'a good move', book: 'a book move',
-    inaccuracy: 'an inaccuracy', mistake: 'a mistake', miss: 'a missed chance', blunder: 'a blunder',
-  }[row.cls];
-  const fix = !row.isBest && bestSan && !['book', 'excellent', 'good'].includes(row.cls) ? `<div class="muted">Best was <b>${esc(bestSan)}</b>${evalBest ? ` (${esc(evalBest)})` : ''}.</div>` : '';
-  return `<div class="card-h"><h2>Move analysis</h2><span class="muted small">${side === 'w' ? 'White' : 'Black'} · move ${Math.ceil(ply / 2)}</span></div>
-    <div class="card-b">
-      <div class="rm-top">${badge(row.cls).replace('class="badge"', 'class="badge"')}<b>${esc(san)} is ${verdict}</b></div>
-      ${fix}
-      <div class="rm-evals"><span>Eval after: <b>${esc(evalAfter)}</b></span><span>Accuracy: <b>${row.acc.toFixed(0)}%</b></span></div>
-      ${chips || ''}
-      ${text ? `<div class="txt" style="white-space:pre-wrap">${esc(text)}</div>` : busy ? '<div class="dots">The tutor is thinking…</div>' : `${err ? `<div class="err">${esc(err)}</div>` : ''}${template ? `<div class="txt">${esc(template)}</div>` : ''}`}
-      ${canExplain && !text && !busy ? '<button class="btn sm" data-explain type="button">Explain this move</button>' : ''}
-    </div>`;
+  const body = text ? esc(text) : busy ? `<span class="dots">The tutor is thinking…</span>` : `${err ? `<div class="err">${esc(err)}</div>` : ''}${esc(template || '')}`;
+  const footer = `<div class="lesson-actions"><span class="rm-evals"><span>Eval after <b>${esc(evalAfter)}</b></span><span>Accuracy <b>${row.acc.toFixed(0)}%</b></span></span>${canExplain && !text && !busy ? '<button class="btn sm" data-explain type="button">Explain with AI</button>' : ''}</div>`;
+  return `<div class="card-b">${lessonCard({ kicker: `Move analysis · ${row.side === 'w' ? 'White' : 'Black'}`, title, cls: row.cls, chips, body, tip, footer })}</div>`;
 }

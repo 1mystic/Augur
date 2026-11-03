@@ -7,7 +7,7 @@ import { detectBoard, fallbackBox } from './vision/detect.js';
 import { loadModel, classifyBoard, guessFlipped, gridToPlacement } from './vision/classify.js';
 import { summarise, terminalEval, judge, fmtWhite, whiteWin, openingName, inBook, CLASSES } from './coach.js';
 import { PROVIDERS, loadLLM, saveLLM, clearLLM, llmReady, ask, TUTOR_SYSTEM } from './llm.js';
-import { esc, badge, buildSummary, buildMoveCard } from './review.js';
+import { esc, badge, buildSummary, buildMoveCard, lessonCard, moveTitle } from './review.js';
 
 const $ = s => document.querySelector(s);
 const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
@@ -169,7 +169,7 @@ function refresh() {
   $('#fen').value = fen;
   $('#btn-edit').classList.toggle('on', S.edit); $('#palette').classList.toggle('hidden', !S.edit);
   $('#evalbar').classList.toggle('flip', S.orient === 'b');
-  renderMoves(); renderLines();
+  renderMoves(); renderTimeline(); renderLines();
   syncBot();
 }
 function setSeg(sel, v) { document.querySelectorAll(sel + ' button').forEach(b => b.classList.toggle('on', b.dataset.v === v)); }
@@ -348,13 +348,33 @@ function renderMode(turn) {
     el.querySelector('.sub').textContent = bot ? (side === 'w' ? 'White' : 'Black') : '';
   }
   $('#card-coach').classList.toggle('hidden', S.mode !== 'tutor'); $('#card-review').classList.toggle('hidden', S.mode !== 'review');
-  $('#card-moves').classList.toggle('hidden', S.mode === 'review' && !R.rows.length);
+  $('#card-play').classList.toggle('hidden', S.mode === 'review' && !R.rows.length);
+  $('#btn-new').classList.toggle('hidden', S.mode === 'review');
+  $('#mode-kicker').textContent = { analysis: 'Analysis', pvp: 'Player vs Player', bot: 'Play the bot', tutor: 'Tutor lesson', review: 'Game review' }[S.mode];
+  $('#tab-main-label').textContent = { analysis: 'Engine', pvp: 'Game', bot: 'Game', tutor: 'Lesson', review: 'Review' }[S.mode];
   $('#move-form').classList.toggle('hidden', S.mode === 'review'); $('#move-tip').classList.toggle('hidden', S.mode === 'review');
   if (S.mode === 'tutor') renderFeed();
   renderReview();
   $('#move-tip').textContent = bot ? 'Drag a piece or type your move. Take back to try a different line.' : 'Type a move, or drag pieces on the board. Paste a move list or PGN to rebuild a game.';
 }
 function warmBot() { if (botFails >= 2) return; botEngine ??= new Engine({ multipv: 1, single: true }); botEngine.setOptions(LEVELS[S.bot.level].opts); }
+/** Panel sub-navbar: one group of cards at a time. */
+function setTab(t) {
+  S.tab = t; store.set('tab', t);
+  document.querySelectorAll('#subnav [data-tab]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === t)));
+  document.querySelectorAll('.pane').forEach(p => { p.hidden = p.dataset.pane !== t; });
+}
+function renderTimeline() {
+  const el = $('#timeline');
+  $('#tl-count').textContent = S.moves.length ? `${S.ply} / ${S.moves.length}` : '';
+  if (!S.moves.length) { el.innerHTML = '<span class="empty">No moves yet.</span>'; return; }
+  el.innerHTML = S.moves.map((mv, i) => {
+    const cls = clsOf(i), c = CLASSES[cls];
+    return `<button type="button" class="tchip ${c ? 'graded' : ''} ${i + 1 === S.ply ? 'cur' : ''} ${i + 1 > S.ply ? 'future' : ''}" data-ply="${i + 1}"${c ? ` style="--c:${c.color}" title="${c.label}"` : ''}>${esc(moveTitle(mv.san, i, S.base, cls))}</button>`;
+  }).join('');
+  const cur = el.querySelector('.cur');
+  el.scrollLeft = cur ? cur.offsetLeft - el.clientWidth / 2 + cur.offsetWidth / 2 : el.scrollWidth;
+}
 function setMode(m) {
   if (m === S.mode) return;
   S.mode = m; store.set('mode', m);
@@ -363,6 +383,7 @@ function setMode(m) {
   clockReset();
   if (R.status === 'running') cancelReview();
   if (m === 'tutor') { T.entries = []; T.gen++; }
+  setTab('main');
   refresh();
 }
 function setHuman(c) {
@@ -495,7 +516,6 @@ function tutorPrompt(e) {
   ].filter(Boolean).join('\n');
 }
 const LEVEL_TXT = { beginner: 'a beginner: avoid jargon and explain the basic idea', intermediate: 'a club player', advanced: 'an advanced player: be concise and concrete' };
-const ENGINE_BLURB = { brilliant: 'A brilliant sacrifice.', great: 'The only strong move here.', best: 'The engine\'s top choice.', excellent: 'Nearly as good as the best move.', good: 'A reasonable move.', book: 'A well-known opening move.', inaccuracy: 'Slightly weakens your position.', mistake: 'A real slip.', miss: 'Gave away a chance to take advantage.', blunder: 'A serious error.' };
 const clsOf = i => (S.mode === 'tutor' ? T.entries[i]?.cls : S.mode === 'review' ? R.rows[i]?.cls : null);
 function plyBadge() {
   const cls = S.ply ? clsOf(S.ply - 1) : null;
@@ -534,24 +554,41 @@ function motifsFor(e) {
   if (!motifCache.has(key)) { try { motifCache.set(key, detectMotifs(e)); } catch { motifCache.set(key, []); } }
   return motifCache.get(key);
 }
-const motifChips = ms => (ms?.length ? `<div class="motifs">${ms.slice(0, 3).map(x => `<span class="mchip ${x.tone}">${esc(x.label)}</span>`).join('')}</div>` : '');
+const motifChips = ms => (ms || []).slice(0, 3).map(x => `<span class="mchip ${x.tone}">${esc(x.label)}</span>`).join('');
 /** Plain-English explanation built only from engine facts: used when no AI key is set (and never wrong about the numbers). */
-function templateText(e) {
-  if (!e.cls || !e.before || !e.after) return '';
+const MOTIF_TIPS = {
+  'missed-mate': 'Look at every check first: forcing moves come before anything else.',
+  'allows-mate': 'Before you move, ask which checks your opponent will have next.',
+  hanging: 'Before every move, list which of your pieces are attacked and whether they are still defended.',
+  'missed-capture': 'Scan for captures on every move: checks, captures, then threats.',
+  fork: 'Watch for squares where a knight or queen can hit two of your pieces at once.',
+  pin: 'Avoid lining up your king or queen behind another piece on an open line.',
+  skewer: 'Keep your king and queen off the same line as an enemy rook, bishop or queen.',
+  discovered: 'When a piece moves, check which lines it opens for the pieces behind it.',
+  'king-safety': 'Keep the pawns in front of a castled king unless you win something concrete.',
+};
+/** Template explanation split into the explanation itself and a coaching tip (better move + habit to build). */
+function templateParts(e) {
+  if (!e.cls || !e.before || !e.after) return { text: '', tip: '' };
   const ms = e.motifs || [], has = k => ms.some(x => x.key === k);
   const moverAfter = -e.after.cp, lost = (e.before.cp - moverAfter) / 100, line = (e.pv || []).slice(1, 4).join(' ');
+  const good = ['best', 'great', 'brilliant', 'book', 'excellent', 'good'].includes(e.cls);
   let lead;
   if (has('mate')) lead = '';
-  else if (['best', 'great', 'brilliant'].includes(e.cls)) lead = `${e.san} is Stockfish's first choice here${e.after.mate < 0 ? ' and keeps a forced mate on the board' : ''}.${line && !ms.length ? ` The main line continues ${line}.` : ''}`;
+  else if (['best', 'great', 'brilliant'].includes(e.cls)) lead = `${e.san} is Stockfish's first choice here${e.after.mate < 0 ? ' and keeps a forced mate on the board' : ''}.`;
   else if (e.cls === 'book') lead = `${e.san} is standard opening theory${S.base === START_FEN && e.sans ? ` (${openingName(e.sans) || 'a known line'})` : ''}.`;
   else if (['excellent', 'good'].includes(e.cls)) lead = `${e.san} is a solid move${e.bestSan ? `; ${e.bestSan} was a touch more precise` : ''}.`;
-  else if (has('allows-mate') || has('missed-mate')) lead = `${e.san} is ${CLASSES[e.cls].label === 'Inaccuracy' ? 'an' : 'a'} ${CLASSES[e.cls].label.toLowerCase()}.`;
+  else if (has('allows-mate') || has('missed-mate')) lead = `${e.san} is ${e.cls === 'inaccuracy' ? 'an' : 'a'} ${CLASSES[e.cls].label.toLowerCase()}.`;
   else lead = `${e.san} costs about ${Math.abs(lost).toFixed(1)} pawns of evaluation, and the winning chances drop by ${e.drop.toFixed(0)}%.`;
-  const facts = ms.slice(0, 2).map(x => x.text).join(' ');
-  const fix = !['best', 'great', 'brilliant', 'book', 'excellent', 'good'].includes(e.cls) && e.bestSan && !has('missed-mate') && !has('missed-capture')
-    ? ` ${e.bestSan} was stronger${line ? `, for example ${e.bestSan} ${line}` : ''}.` : '';
-  return [lead, facts].filter(Boolean).join(' ') + fix;
+  const text = [lead, ms.slice(0, 2).map(x => x.text).join(' ')].filter(Boolean).join(' ');
+  let tip = '';
+  if (!good && e.bestSan && !has('missed-mate') && !has('missed-capture')) tip = `Better was <b>${esc(e.bestSan)}</b>${line ? `, for example ${esc(e.bestSan)} ${esc(line)}` : ''}.`;
+  else if (good && line && !has('mate')) tip = `Main line: <b>${esc(e.san)}</b> ${esc(line)}`;
+  const habit = !good && ms.map(x => MOTIF_TIPS[x.key]).find(Boolean);
+  if (habit) tip += `${tip ? '<br>' : ''}${esc(habit)}`;
+  return { text, tip };
 }
+function templateText(e) { const p = templateParts(e); return [p.text, p.tip.replace(/<br>/g, ' ').replace(/<[^>]+>/g, '')].filter(Boolean).join(' '); }
 /** Opening / middlegame / endgame for the position before a move. */
 function phaseOf(fen, ply, book) {
   if (book || ply < 16) return 'opening';
@@ -559,20 +596,21 @@ function phaseOf(fen, ply, book) {
   let mat = 0; for (const ch of placement.toLowerCase()) mat += v[ch] || 0;
   return mat <= 26 ? 'endgame' : 'middlegame';
 }
-function feedItem(e) {
-  const head = `<div class="fb-h">${badge(e.cls)}<b>${esc(e.san)}</b><span class="who">${e.human ? 'You' : 'Bot'} · ${e.side === 'w' ? 'White' : 'Black'}</span><span class="ev">${esc(e.evalAfter || '')}</span></div>`;
-  if (!e.cls) return `<div class="fb">${head}<div class="fb-b"><span class="dots">Evaluating…</span></div></div>`;
-  const best = !e.isBest && e.bestSan && !['book', 'excellent', 'good'].includes(e.cls) ? ` Better was <b>${esc(e.bestSan)}</b>.` : '';
-  const tpl = templateText(e);
-  const body = e.text ? `<div class="txt">${esc(e.text)}</div>` : e.status === 'llm' ? '<span class="dots">Tutor is writing…</span>' : e.status === 'error' ? `<div class="err">${esc(e.err)}</div><div class="txt">${esc(tpl)}</div>` : tpl ? `<div class="txt">${esc(tpl)}</div>` : '';
-  return `<div class="fb">${head}<div class="fb-b"><div class="eng"><b style="color:${CLASSES[e.cls].color}">${CLASSES[e.cls].label}.</b>${e.text ? ` ${ENGINE_BLURB[e.cls]}${best}` : ''}</div>${motifChips(e.motifs)}${body}</div></div>`;
-}
+/** Tutor panel: one focused lesson card for the move on the board (latest by default), plus running stats. */
 function renderFeed() {
   const el = $('#coach-feed'), note = $('#coach-note'), ok = llmReady();
   note.classList.toggle('hidden', ok);
-  if (!ok) note.innerHTML = 'Showing engine feedback only. <button class="linkish" data-open-settings type="button">Add an API key</button> for plain-English explanations of every move.';
+  if (!ok) note.innerHTML = 'Explanations are built from the engine\'s numbers. <button class="linkish" data-open-settings type="button">Add an API key</button> for a conversational AI tutor.';
   const items = T.entries.filter(Boolean);
-  el.innerHTML = items.length ? items.slice().reverse().map(feedItem).join('') : '<div class="empty">Make a move and the tutor will explain it here.</div>';
+  if (!items.length) { el.innerHTML = lessonCard({ kicker: 'Tutor lesson', title: 'Your move', body: 'Play a move against the bot. Each move, yours and the bot\'s, is graded and explained here; use the timeline or ← → to revisit earlier ones.' }); return; }
+  const e = (S.ply && T.entries[S.ply - 1]) || items[items.length - 1];
+  const title = moveTitle(e.san, e.i, S.base, e.cls), kicker = `${e.human ? 'Your move' : 'Bot move'} · ${e.side === 'w' ? 'White' : 'Black'}`;
+  const mine = items.filter(x => x.human && x.cls), acc = mine.length ? mine.reduce((a, x) => a + x.acc, 0) / mine.length : null;
+  const stats = `<div class="lesson-stats"><div><span>Your accuracy</span><b>${acc == null ? '·' : acc.toFixed(0) + '%'}</b></div><div><span>Strong moves</span><b>${mine.filter(x => ['best', 'great', 'brilliant', 'excellent', 'book'].includes(x.cls)).length}</b></div><div><span>Mistakes</span><b>${mine.filter(x => ['inaccuracy', 'mistake', 'miss', 'blunder'].includes(x.cls)).length}</b></div></div>`;
+  if (!e.cls) { el.innerHTML = lessonCard({ kicker, title, body: '<span class="dots">Evaluating…</span>', footer: stats }); return; }
+  const p = templateParts(e);
+  const body = e.text ? esc(e.text) : e.status === 'llm' ? `${esc(p.text)}<br><span class="dots">The AI tutor is writing…</span>` : `${e.status === 'error' ? `<div class="err">${esc(e.err)}</div>` : ''}${esc(p.text)}`;
+  el.innerHTML = lessonCard({ kicker, meta: esc(e.evalAfter || ''), title, cls: e.cls, chips: motifChips(e.motifs), body, tip: p.tip, footer: stats });
 }
 
 // ---------- game review ----------
@@ -681,7 +719,8 @@ function renderReview() {
   if (R.status === 'idle' || !has) return;
   $('#rv-summary').innerHTML = buildSummary(R, S.ply);
   const i = S.ply - 1, row = R.rows[i];
-  $('#card-rmove').innerHTML = buildMoveCard({ row, ply: S.ply, san: S.moves[i]?.san, side: row?.side, bestSan: row?.bestSan, evalAfter: row?.evalAfter, evalBest: row?.evalBest, text: row?.text, busy: row?.busy, err: row?.err, canExplain: llmReady(), template: row ? templateText(row) : '', chips: row ? motifChips(row.motifs) : '', opening: R.opening, pending: R.status === 'running' && S.ply > 0 && !row });
+  const parts = row ? templateParts(row) : { text: '', tip: '' };
+  $('#card-rmove').innerHTML = buildMoveCard({ row, ply: S.ply, title: S.moves[i] ? moveTitle(S.moves[i].san, i, S.base, row?.cls) : '', evalAfter: row?.evalAfter, text: row?.text, busy: row?.busy, err: row?.err, canExplain: llmReady(), template: parts.text, tip: parts.tip, chips: row ? motifChips(row.motifs) : '', opening: R.opening, pending: R.status === 'running' && S.ply > 0 && !row });
 }
 function reviewView() {
   const row = S.ply ? R.rows[S.ply - 1] : null, arrows = [];
@@ -978,7 +1017,7 @@ async function scan(blob) {
   const drop = $('#drop'); drop.classList.add('scanning');
   const t0 = performance.now();
   try {
-    S.img = await createImageBitmap(blob);
+    S.img = await createImageBitmap(blob); setTab('position');
     await modelReady;
     S.box = detectBoard(S.img) || fallbackBox(S.img);
     const found = S.box.score > 0;
@@ -1130,6 +1169,9 @@ function init() {
   $('#think').addEventListener('change', e => store.set('think', e.target.value));
   $('#btn-help').addEventListener('click', () => $('#help').showModal());
   wireReview(); wireSettings(); wirePrefs(); applyPrefs(); wireExport();
+  $('#subnav').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (b) setTab(b.dataset.tab); });
+  $('#timeline').addEventListener('click', e => { const b = e.target.closest('[data-ply]'); if (b) goto(+b.dataset.ply); });
+  setTab(['main', 'moves', 'position'].includes(store.get('tab', 'main')) ? store.get('tab', 'main') : 'main');
   enhanceSelect($('#llm-provider')); enhanceSelect($('#think'), { small: true });
   document.addEventListener('click', e => { const c = e.target.closest('[data-close]'); if (c) c.closest('dialog').close(); });
   $('#settings').addEventListener('click', e => { const r = e.currentTarget.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) e.currentTarget.close(); });

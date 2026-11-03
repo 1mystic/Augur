@@ -59,6 +59,13 @@
   </header>
 
   <main class="layout">
+    <nav class="rail" id="seg-mode" role="radiogroup" aria-label="Game mode">
+      <button type="button" role="radio" data-v="analysis" title="Analysis: scan, explore, top moves"><svg class="ic"><use href="#i-search"/></svg><span>Analysis</span></button>
+      <button type="button" role="radio" data-v="pvp" title="Player vs Player"><svg class="ic"><use href="#i-users"/></svg><span>PvP</span></button>
+      <button type="button" role="radio" data-v="bot" title="Play the bot"><svg class="ic"><use href="#i-bot"/></svg><span>Bot</span></button>
+      <button type="button" role="radio" data-v="tutor" title="Tutor lesson"><svg class="ic"><use href="#i-teacher"/></svg><span>Tutor</span></button>
+      <button type="button" role="radio" data-v="review" title="Game review"><svg class="ic"><use href="#i-chart"/></svg><span>Review</span></button>
+    </nav>
     <section class="board-col">
       <div class="card board-card">
         <div class="board-wrap">
@@ -83,18 +90,17 @@
     </section>
 
     <aside class="panel">
-      <div class="card" id="card-game">
-        <div class="card-h"><h2>Game</h2><button class="btn sm" id="btn-new" type="button"><svg class="ic"><use href="#i-plus"/></svg><span>New game</span></button></div>
-        <div class="card-b">
-          <div class="modes" id="seg-mode" role="radiogroup" aria-label="Game mode">
-            <button type="button" role="radio" data-v="analysis"><svg class="ic"><use href="#i-search"/></svg><span>Analysis</span></button>
-            <button type="button" role="radio" data-v="pvp"><svg class="ic"><use href="#i-users"/></svg><span>Player vs Player</span></button>
-            <button type="button" role="radio" data-v="bot"><svg class="ic"><use href="#i-bot"/></svg><span>Play the bot</span></button>
-            <button type="button" role="radio" data-v="tutor"><svg class="ic"><use href="#i-teacher"/></svg><span>Tutor lesson</span></button>
-            <button type="button" role="radio" data-v="review"><svg class="ic"><use href="#i-chart"/></svg><span>Game review</span></button>
-          </div>
-          <p class="mode-desc muted" id="mode-desc"></p>
+      <div class="subnav" id="subnav" role="tablist" aria-label="Panel">
+        <button type="button" role="tab" data-tab="main"><span id="tab-main-label">Engine</span></button>
+        <button type="button" role="tab" data-tab="moves">Moves</button>
+        <button type="button" role="tab" data-tab="position">Position</button>
+      </div>
 
+      <section class="pane" data-pane="main">
+      <div class="card" id="card-game">
+        <div class="card-h"><div class="kick"><span class="kicker" id="mode-kicker">Analysis</span></div><button class="btn sm" id="btn-new" type="button"><svg class="ic"><use href="#i-plus"/></svg><span>New game</span></button></div>
+        <div class="card-b">
+          <p class="mode-desc muted" id="mode-desc"></p>
           <div class="opts hidden" id="opts-pvp">
             <div class="row">
               <div class="lbl-col"><span class="lbl">Hints</span><span class="muted small">Stockfish shows one suggested move on request</span></div>
@@ -124,6 +130,15 @@
         </div>
       </div>
 
+      <div class="card" id="card-play">
+        <div class="card-b">
+          <div class="kicker-row"><span class="kicker">Move timeline</span><span class="muted small" id="tl-count"></span></div>
+          <div class="timeline" id="timeline"></div>
+          <form id="move-form" autocomplete="off"><span class="side-tag" id="side-tag"><i></i><b>White</b></span><input id="move-in" placeholder="White's move: e4, Nf3, O-O…" aria-label="Enter a move" /></form>
+          <p class="muted small tip" id="move-tip">Type a move, or drag pieces on the board. Paste a move list or PGN to rebuild a game.</p>
+        </div>
+      </div>
+
       <div class="card" id="card-engine">
         <div class="card-h">
           <h2 id="engine-title">Best moves</h2>
@@ -142,10 +157,10 @@
       </div>
 
       <div class="card hidden" id="card-coach">
-        <div class="card-h"><h2>Tutor</h2><button class="btn sm" id="btn-coach-settings" type="button"><svg class="ic"><use href="#i-gear"/></svg><span>AI settings</span></button></div>
+        <div class="card-h"><div class="kick"><span class="kicker">Tutor lesson</span></div><button class="btn sm" id="btn-coach-settings" type="button"><svg class="ic"><use href="#i-gear"/></svg><span>AI settings</span></button></div>
         <div class="card-b">
           <p class="note hidden" id="coach-note"></p>
-          <div class="feed" id="coach-feed"></div>
+          <div id="coach-feed"></div>
         </div>
       </div>
 
@@ -171,18 +186,20 @@
         </div>
       </div>
       <div class="card hidden" id="card-rmove"></div>
+      </section>
 
+      <section class="pane" data-pane="moves">
       <div class="card" id="card-moves">
         <div class="card-h"><h2>Moves</h2><div class="hdr-btns"><button class="btn sm" id="btn-export" type="button" title="Export or share this game"><svg class="ic"><use href="#i-share"/></svg><span>Export</span></button><button class="btn sm" id="btn-reset" type="button" title="Rewind to the first position"><svg class="ic"><use href="#i-undo"/></svg><span>Rewind</span></button></div></div>
         <div class="card-b">
-          <form id="move-form" autocomplete="off"><span class="side-tag" id="side-tag"><i></i><b>White</b></span><input id="move-in" placeholder="White's move: e4, Nf3, O-O…" aria-label="Enter a move" /></form>
-          <p class="muted small tip" id="move-tip">Type a move, or drag pieces on the board. Paste a move list or PGN to rebuild a game.</p>
           <div class="movelist" id="movelist"></div>
         </div>
       </div>
+      </section>
 
-      <details class="card fold" id="card-scan" open>
-        <summary class="card-h"><h2>Position</h2><span class="muted small" id="scan-time"></span></summary>
+      <section class="pane" data-pane="position">
+      <div class="card" id="card-scan">
+        <div class="card-h"><h2>Scan or set up a position</h2><span class="muted small" id="scan-time"></span></div>
         <div class="card-b">
           <label class="drop" id="drop">
             <input type="file" accept="image/*" id="file" hidden />
@@ -217,7 +234,8 @@
             <p class="warn hidden" id="warn"></p>
           </div>
         </div>
-      </details>
+      </div>
+      </section>
     </aside>
   </main>
 

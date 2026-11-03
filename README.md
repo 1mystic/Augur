@@ -41,6 +41,10 @@ screenshot ──► board detector ──► 64 tiles ──► tiny CNN (≈40
   </tr>
 </table>
 
+## layout
+
+a slim **mode rail** on the left switches between the five modes; the side panel has a **sub-navbar** (Engine / Game / Lesson / Review, Moves, Position) so only one group of controls shows at a time. every mode has a horizontal **move timeline** whose chips are colour-coded by grade, and the tutor and review share one focused **lesson card**: the move, its grade and motifs, the explanation, and a tip box with the better move and the habit to build.
+
 ## modes
 
 | mode | what you get |
