@@ -555,3 +555,82 @@ html { scrollbar-gutter: stable; }
 #move-in, .fen-row input, .field input, .field select, .ex-text, #rv-pgn { background: var(--inset); }
 .note { background: var(--accent-soft); border-color: var(--accent-line); }
 .toast { background: var(--surface-2); color: var(--ink); border: 1px solid var(--border-strong); font: 600 12.5px/1.4 var(--mono); }
+
+/* =====================================================================
+   Type + pastel multicolour: Space Grotesk for UI, JetBrains Mono for labels,
+   translucent pastel tints with one hue per area. The board keeps its own font.
+   ===================================================================== */
+:root {
+  --sans: 'Space Grotesk Variable', Inter, ui-sans-serif, -apple-system, 'Segoe UI', system-ui, sans-serif;
+  --mono: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--sans);
+  --blue-soft: rgba(74, 106, 154, .10); --blue-line: rgba(74, 106, 154, .36);
+  --violet-soft: rgba(111, 92, 153, .10); --violet-line: rgba(111, 92, 153, .36);
+}
+:root[data-theme="dark"] {
+  --blue-soft: rgba(156, 182, 221, .12); --blue-line: rgba(156, 182, 221, .38);
+  --violet-soft: rgba(182, 167, 207, .12); --violet-line: rgba(182, 167, 207, .38);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --blue-soft: rgba(156, 182, 221, .12); --blue-line: rgba(156, 182, 221, .38);
+    --violet-soft: rgba(182, 167, 207, .12); --violet-line: rgba(182, 167, 207, .38);
+  }
+}
+body { font-family: var(--sans); font-weight: 500; letter-spacing: -.005em; }
+button, select, input, textarea { font-family: inherit; }
+.board, .board * { font-family: Inter, ui-sans-serif, -apple-system, 'Segoe UI', system-ui, sans-serif; }
+
+/* bolder, tighter headings */
+.brand b { font-family: var(--sans); font-weight: 700; letter-spacing: .01em; font-size: 21px; }
+.lesson-title, .rv-title b { font-weight: 700; letter-spacing: -.02em; }
+.lesson-title { font-size: 23px; }
+.acc .n { font-weight: 700; letter-spacing: -.03em; }
+.player b, .turn { font-weight: 700; }
+.lbl { font-weight: 600; }
+.callout { font-weight: 500; }
+
+/* each area gets its own translucent pastel: --h (text/line) + --hs (fill) */
+#card-game   { --h: var(--violet); --hs: var(--violet-soft); --hl: var(--violet-line); }
+#card-play   { --h: var(--blue);   --hs: var(--blue-soft);   --hl: var(--blue-line); }
+#card-engine { --h: var(--sage);   --hs: var(--sage-soft);   --hl: var(--sage-line); }
+#card-coach  { --h: var(--violet); --hs: var(--violet-soft); --hl: var(--violet-line); }
+#card-review, #card-rmove { --h: var(--rose); --hs: var(--rose-soft); --hl: var(--rose-line); }
+#card-moves  { --h: var(--amber);  --hs: var(--amber-soft);  --hl: var(--amber-line); }
+#card-scan   { --h: var(--blue);   --hs: var(--blue-soft);   --hl: var(--blue-line); }
+.card-h { background: var(--hs, transparent); border-bottom: 1px solid var(--hl, var(--border-strong)); }
+.card h2, .card .kicker { color: var(--h, var(--ink-soft)); }
+.card .primary { background: var(--hs, var(--accent-soft)); border-color: var(--hl, var(--accent-line)); color: var(--h, var(--accent)); }
+.card .primary:hover { background: var(--h, var(--accent)); color: var(--surface); }
+
+/* mode rail: each mode its own pastel when active, icons tinted */
+.rail button[data-v="analysis"] { --h: var(--blue);   --hs: var(--blue-soft);   --hl: var(--blue-line); }
+.rail button[data-v="pvp"]      { --h: var(--sage);   --hs: var(--sage-soft);   --hl: var(--sage-line); }
+.rail button[data-v="bot"]      { --h: var(--amber);  --hs: var(--amber-soft);  --hl: var(--amber-line); }
+.rail button[data-v="tutor"]    { --h: var(--violet); --hs: var(--violet-soft); --hl: var(--violet-line); }
+.rail button[data-v="review"]   { --h: var(--rose);   --hs: var(--rose-soft);   --hl: var(--rose-line); }
+.rail button .ic { color: var(--h); opacity: .8; }
+.rail button:hover { background: var(--hs); color: var(--h); }
+.rail button[aria-checked="true"] { background: var(--hs); border-color: var(--hl); color: var(--h); }
+.rail button[aria-checked="true"] .ic { opacity: 1; }
+
+/* sub-navbar tabs: blue / amber / sage */
+.subnav [data-tab="main"]     { --h: var(--blue);  --hs: var(--blue-soft);  --hl: var(--blue-line); }
+.subnav [data-tab="moves"]    { --h: var(--amber); --hs: var(--amber-soft); --hl: var(--amber-line); }
+.subnav [data-tab="position"] { --h: var(--sage);  --hs: var(--sage-soft);  --hl: var(--sage-line); }
+.subnav button[aria-selected="true"] { background: var(--hs); border-color: var(--hl); color: var(--h); }
+
+/* status pill, chips and tiles pick up the palette too */
+.status.ok { color: var(--sage); background: var(--sage-soft); border-color: var(--sage-line); }
+.status.loading { color: var(--amber); background: var(--amber-soft); border-color: var(--amber-line); }
+.status.err { color: var(--rose); background: var(--rose-soft); border-color: var(--rose-line); }
+.tchip.graded { background: color-mix(in srgb, var(--c) 12%, transparent); }
+.lesson-stats div:nth-child(1) { background: var(--blue-soft);  border-color: var(--blue-line); }
+.lesson-stats div:nth-child(2) { background: var(--sage-soft);  border-color: var(--sage-line); }
+.lesson-stats div:nth-child(3) { background: var(--rose-soft);  border-color: var(--rose-line); }
+.lesson-stats div:nth-child(1) b { color: var(--blue); }
+.lesson-stats div:nth-child(2) b { color: var(--sage); }
+.lesson-stats div:nth-child(3) b { color: var(--rose); }
+.acc > div:nth-child(1) { background: var(--blue-soft); border-color: var(--blue-line); }
+.acc > div:nth-child(2) { background: var(--violet-soft); border-color: var(--violet-line); }
+.tipbox { background: var(--hs, var(--inset)); border-color: var(--hl, var(--border-strong)); color: var(--h, var(--accent)); }

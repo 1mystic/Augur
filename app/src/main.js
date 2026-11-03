@@ -1,3 +1,5 @@
+import '@fontsource-variable/space-grotesk';
+import '@fontsource-variable/jetbrains-mono';
 import { Chess } from 'chess.js';
 import { Board, pieceSrc } from './board.js';
 import { Engine } from './engine.js';
