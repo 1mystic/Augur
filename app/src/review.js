@@ -5,11 +5,12 @@ export const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;',
 export const badge = cls => (CLASSES[cls] ? `<span class="badge" style="background:${CLASSES[cls].color}" title="${CLASSES[cls].label}">${CLASSES[cls].glyph}</span>` : '');
 
 /** Eval graph: White's winning chances over the game. `ws` has N+1 values (0..100), one per position. */
-export function buildGraph(ws, ply) {
-  const W = 600, H = 86, n = Math.max(1, ws.length - 1);
+export function buildGraph(ws, ply, total) {
+  if (ws.length < 2) return '';
+  const W = 600, H = 86, n = Math.max(1, total ?? ws.length - 1);
   const X = i => (i / n) * W, Y = v => H - (v / 100) * H;
   const pts = ws.map((v, i) => `${X(i).toFixed(1)},${Y(v).toFixed(1)}`);
-  const area = `M0,${H} L${pts.join(' L')} L${W},${H} Z`;
+  const area = `M0,${H} L${pts.join(' L')} L${X(ws.length - 1)},${H} Z`;
   const cx = X(Math.min(ply, n));
   return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Evaluation graph">
     <path d="${area}" fill="#f1f2fa"/>
@@ -35,7 +36,7 @@ export function buildSummary(R, ply) {
       <div><div class="who"><i></i>${esc(name('White'))}${elo('White')}</div><div class="n">${R.acc.w.toFixed(1)}<small>%</small></div></div>
       <div><div class="who"><i class="b"></i>${esc(name('Black'))}${elo('Black')}</div><div class="n">${R.acc.b.toFixed(1)}<small>%</small></div></div>
     </div>
-    <div class="graph" id="rv-graph" title="Click to jump to a move">${buildGraph(R.ws, ply)}</div>
+    <div class="graph" id="rv-graph" title="Click to jump to a move">${buildGraph(R.ws.slice(0, R.rows.length + 1), ply, R.total)}</div>
     <table class="ctable"><tbody>${rows}</tbody></table>
     <div class="moments">
       <button class="btn" data-moment="-1" type="button" ${bad ? '' : 'disabled'}>‹ Previous mistake</button>
@@ -43,7 +44,8 @@ export function buildSummary(R, ply) {
     </div>`;
 }
 
-export function buildMoveCard({ row, ply, san, side, bestSan, evalAfter, evalBest, text, busy, err, canExplain, opening }) {
+export function buildMoveCard({ row, ply, san, side, bestSan, evalAfter, evalBest, text, busy, err, canExplain, opening, pending }) {
+  if (!row && pending) return `<div class="card-h"><h2>Move analysis</h2></div><div class="card-b"><div class="dots muted">Still analysing this move…</div></div>`;
   if (!row) {
     return `<div class="card-h"><h2>Move analysis</h2></div><div class="card-b"><div class="rm-top"><b>${ply === 0 ? 'Starting position' : 'Final position'}</b></div>
       <p class="muted small" style="margin:0">${opening ? esc(opening) + ' · ' : ''}Step through the game with ← → or click a point on the graph.</p></div>`;

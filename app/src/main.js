@@ -36,7 +36,11 @@ const MODES = {
 const T = { entries: [], gen: 0 };                                   // tutor feed
 const R = { status: 'idle', run: 0, rows: [], evals: [], ws: [], counts: { w: {}, b: {} }, acc: { w: 0, b: 0 }, headers: {}, opening: null, speed: ['fast', 'std', 'deep'].includes(store.get('speed')) ? store.get('speed') : 'std' };
 // depth-limited (not time-limited): easy positions finish in a few ms, so reviews are quick; movetime is only a safety cap
-const SPEEDS = { fast: 'depth 10 movetime 1200', std: 'depth 13 movetime 2500', deep: 'depth 16 movetime 5000' };
+const SPEEDS = {
+  fast: { go: 'depth 10 movetime 1200', early: { min: 7, n: 3, tol: 20 } },
+  std: { go: 'depth 13 movetime 2500', early: { min: 9, n: 3, tol: 12 } },
+  deep: { go: 'depth 16 movetime 5000', early: { min: 12, n: 4, tol: 8 } },
+};
 const vsBot = () => S.mode === 'bot' || S.mode === 'tutor';
 const LEVELS = {
   easy: { label: 'Easy', desc: 'Makes plenty of mistakes, good for learning (~1000).', opts: { UCI_LimitStrength: false, 'Skill Level': 1 }, go: 'movetime 200' },
@@ -106,7 +110,7 @@ function play(from, to, promotion, byBot = false) {
   if (autoOn()) analyse(); else stopEngine();
   return true;
 }
-function goto(ply) { S.ply = Math.max(0, Math.min(S.moves.length, ply)); S.lines = []; refresh(); if (autoOn()) analyse(); }
+function goto(ply) { if (S.mode === 'review') R.follow = false; S.ply = Math.max(0, Math.min(S.moves.length, ply)); S.lines = []; refresh(); if (autoOn()) analyse(); }
 const autoOn = () => S.mode === 'analysis' && $('#auto').checked;
 /** Engine lines that the current mode lets the player see. */
 const shown = () => (S.mode === 'analysis' ? S.lines.slice(0, P.lines) : S.mode === 'pvp' && S.hints ? S.lines.slice(0, 1) : []);
@@ -185,7 +189,7 @@ function fmtScore(l, turn) {
 function renderLines() {
   const el = $('#lines'), fen = curFen(), turn = fen.split(' ')[1];
   if (S.mode === 'review') {
-    const ev = R.status === 'done' ? R.evals[S.ply] : null;
+    const ev = R.evals[S.ply] || null;
     setEval(ev ? { w: R.ws[S.ply] / 100, txt: fmtWhite(ev, curFen().split(' ')[1]) } : null); return;
   }
   const lines = shown();
@@ -280,7 +284,7 @@ function renderMode(turn) {
     el.querySelector('.sub').textContent = bot ? (side === 'w' ? 'White' : 'Black') : '';
   }
   $('#card-coach').classList.toggle('hidden', S.mode !== 'tutor'); $('#card-review').classList.toggle('hidden', S.mode !== 'review');
-  $('#card-moves').classList.toggle('hidden', S.mode === 'review' && R.status !== 'done');
+  $('#card-moves').classList.toggle('hidden', S.mode === 'review' && !R.rows.length);
   $('#move-form').classList.toggle('hidden', S.mode === 'review'); $('#move-tip').classList.toggle('hidden', S.mode === 'review');
   if (S.mode === 'tutor') renderFeed();
   renderReview();
@@ -362,26 +366,29 @@ function evalFen(fen, ms) {
   evalCache.set(key, p);
   return p;
 }
-/** Evaluate many positions in parallel on a pool of single-thread Stockfish workers. */
-let pool = [];
-async function evalBatch(fens, go, onTick, stopped) {
-  const n = Math.min(Math.max(1, Math.min(8, (navigator.hardwareConcurrency || 2) - 1)), fens.length);
-  while (pool.length < n) pool.push(new Engine({ multipv: 2, single: true, hash: 16 }));
-  const out = new Array(fens.length); let next = 0, done = 0;
+/** Evaluate many positions in parallel on a small pool of single-thread workers, reporting each result as it lands.
+ *  Cheap by design: stops searching once the best move is stable, and the pool is released shortly after use. */
+let pool = [], poolTimer = null;
+const releasePool = () => { clearTimeout(poolTimer); poolTimer = setTimeout(() => { pool.forEach(e => e.terminate()); pool = []; }, 15000); };
+async function evalBatch(fens, goFor, early, onResult, stopped) {
+  clearTimeout(poolTimer);
+  const n = Math.min(Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 2) - 1)), fens.length);
+  while (pool.length < n) pool.push(new Engine({ multipv: 2, single: true, hash: 8 }));
+  let next = 0;
   await Promise.all(pool.slice(0, n).map(async eng => {
     while (!stopped()) {
       const i = next++; if (i >= fens.length) break;
-      const fen = fens[i], key = fen + '|b|' + go, term = terminalEval(fen);
-      out[i] = term || evalCache.get(key) || await new Promise(res => {
+      const fen = fens[i], go = goFor(i), key = fen + '|b|' + go, term = terminalEval(fen);
+      const ev = term || evalCache.get(key) || await new Promise(res => {
         let fin = false; const finish = v => { if (!fin) { fin = true; res(v); } };
         setTimeout(() => finish(summarise(fen, [])), 20000);
-        eng.analyse(fen, go, (lines, d) => { if (d) finish(summarise(fen, lines)); });
+        eng.analyse(fen, go, (lines, d) => { if (d) finish(summarise(fen, lines)); }, early);
       });
-      if (!term) evalCache.set(key, out[i]);
-      onTick(++done);
+      if (!term) evalCache.set(key, ev);
+      if (!stopped()) onResult(i, ev);
     }
   }));
-  return out;
+  releasePool();
 }
 const uciToSan = (fen, u) => { try { return new Chess(fen).move({ from: u.slice(0, 2), to: u.slice(2, 4), promotion: u[4] }).san; } catch { return u; } };
 function pvToSan(fen, pv = [], n = 6) {
@@ -413,7 +420,7 @@ function tutorPrompt(e) {
 }
 const LEVEL_TXT = { beginner: 'a beginner: avoid jargon and explain the basic idea', intermediate: 'a club player', advanced: 'an advanced player: be concise and concrete' };
 const ENGINE_BLURB = { brilliant: 'A brilliant sacrifice.', great: 'The only strong move here.', best: 'The engine\'s top choice.', excellent: 'Nearly as good as the best move.', good: 'A reasonable move.', book: 'A well-known opening move.', inaccuracy: 'Slightly weakens your position.', mistake: 'A real slip.', miss: 'Gave away a chance to take advantage.', blunder: 'A serious error.' };
-const clsOf = i => (S.mode === 'tutor' ? T.entries[i]?.cls : S.mode === 'review' && R.status === 'done' ? R.rows[i]?.cls : null);
+const clsOf = i => (S.mode === 'tutor' ? T.entries[i]?.cls : S.mode === 'review' ? R.rows[i]?.cls : null);
 function plyBadge() {
   const cls = S.ply ? clsOf(S.ply - 1) : null;
   return cls ? { sq: S.moves[S.ply - 1].to, color: CLASSES[cls].color, glyph: CLASSES[cls].glyph } : null;
@@ -486,48 +493,54 @@ function parseGame(raw) {
   }
   return { headers: {}, startFen, moves, partial: moves.length < toks.length };
 }
-function cancelReview() { R.run++; R.status = 'idle'; }
+function cancelReview() { R.run++; R.status = 'idle'; R.rows = []; R.evals = []; R.ws = []; }
 async function startReview(game) {
   if (game.moves.length < 2) throw new Error('That game has fewer than 2 moves, nothing to review.');
-  const run = ++R.run;
+  const run = ++R.run, cfg = SPEEDS[R.speed], standard = game.startFen === START_FEN;
   Object.assign(S, { base: game.startFen, moves: game.moves, ply: 0, valid: true, edit: false, lines: [], uncertain: new Set() });
   const f = game.startFen.split(' '); Object.assign(S, { placement: f[0], turn: f[1], castle: f[2] === '-' ? '' : f[2] });
-  R.status = 'running'; R.headers = game.headers || {}; R.rows = []; refresh();
-  const fens = [game.startFen, ...game.moves.map(m => m.fen)];
+  const fens = [game.startFen, ...game.moves.map(m => m.fen)], sans = game.moves.map(m => m.san);
+  Object.assign(R, { status: 'running', headers: game.headers || {}, rows: [], evals: [], ws: [], fens, total: game.moves.length, sans, standard, follow: true, got: 0,
+    counts: { w: {}, b: {} }, sum: { w: 0, b: 0 }, n: { w: 0, b: 0 }, acc: { w: 100, b: 100 }, opening: standard ? openingName(sans) : null });
+  refresh();
   const bar = $('#rv-bar'), txt = $('#rv-prog-txt');
-  const evals = await evalBatch(fens, SPEEDS[R.speed], k => { bar.style.width = `${(k / fens.length) * 100}%`; txt.textContent = `Analysing position ${k} of ${fens.length}…`; }, () => R.run !== run);
+  // known opening moves only need a quick look; everything else gets the full depth
+  const goFor = i => (standard && i > 0 && inBook(sans, i) ? 'depth 8' : cfg.go);
+  await evalBatch(fens, goFor, cfg.early, (i, ev) => {
+    R.evals[i] = ev; R.ws[i] = whiteWin(ev, fens[i].split(' ')[1]); R.got++;
+    bar.style.width = `${(R.got / fens.length) * 100}%`; txt.textContent = `Analysing move ${Math.min(R.rows.length + 1, R.total)} of ${R.total}…`;
+    let added = false;
+    while (R.evals[R.rows.length] && R.evals[R.rows.length + 1]) { pushRow(R.rows.length); added = true; }
+    if (added) { if (R.follow) S.ply = R.rows.length; refresh(); } else renderReview();
+  }, () => R.run !== run);
   if (R.run !== run) return;
-  computeReview(game, fens, evals);
-  R.status = 'done'; S.ply = 0; refresh();
+  R.status = 'done'; if (R.follow) S.ply = 0; refresh();
   toast(game.partial ? 'Review ready, stopped at the first move it could not read' : 'Review ready', 3000);
 }
-function computeReview(game, fens, evals) {
-  const N = game.moves.length, rows = [], standard = game.startFen === START_FEN;
-  const sans = game.moves.map(m => m.san);
-  for (let i = 0; i < N; i++) {
-    const mv = game.moves[i], side = fens[i].split(' ')[1];
-    const j = judge({ before: evals[i], after: evals[i + 1], uci: mv.from + mv.to + (mv.promotion || ''), fenBefore: fens[i], fenAfter: fens[i + 1], mover: side, prevCls: rows[i - 1]?.cls, book: standard && inBook(sans, i + 1) });
-    rows.push({ ...j, side, san: mv.san, who: 'The player', best: evals[i].best, before: evals[i], after: evals[i + 1], fenBefore: fens[i], fenAfter: fens[i + 1], sans: sans.slice(0, i + 1),
-      bestSan: evals[i].best ? uciToSan(fens[i], evals[i].best) : null, pv: pvToSan(fens[i], evals[i].lines[0]?.pv),
-      evalAfter: fmtWhite(evals[i + 1], fens[i + 1].split(' ')[1]), evalBest: fmtWhite(evals[i], side) });
-  }
-  const counts = { w: {}, b: {} }, sum = { w: 0, b: 0 }, n = { w: 0, b: 0 };
-  for (const r of rows) { counts[r.side][r.cls] = (counts[r.side][r.cls] || 0) + 1; sum[r.side] += r.acc; n[r.side]++; }
-  Object.assign(R, { rows, evals, counts, acc: { w: n.w ? sum.w / n.w : 100, b: n.b ? sum.b / n.b : 100 }, ws: fens.map((f, k) => whiteWin(evals[k], f.split(' ')[1])), opening: standard ? openingName(sans) : null });
+/** Grade move i as soon as both neighbouring positions are evaluated. */
+function pushRow(i) {
+  const mv = S.moves[i], fens = R.fens, ev = R.evals, side = fens[i].split(' ')[1];
+  const j = judge({ before: ev[i], after: ev[i + 1], uci: mv.from + mv.to + (mv.promotion || ''), fenBefore: fens[i], fenAfter: fens[i + 1], mover: side, prevCls: R.rows[i - 1]?.cls, book: R.standard && inBook(R.sans, i + 1) });
+  const r = { ...j, side, san: mv.san, who: 'The player', best: ev[i].best, before: ev[i], after: ev[i + 1], fenBefore: fens[i], fenAfter: fens[i + 1], sans: R.sans.slice(0, i + 1),
+    bestSan: ev[i].best ? uciToSan(fens[i], ev[i].best) : null, pv: pvToSan(fens[i], ev[i].lines[0]?.pv),
+    evalAfter: fmtWhite(ev[i + 1], fens[i + 1].split(' ')[1]), evalBest: fmtWhite(ev[i], side) };
+  R.rows.push(r);
+  R.counts[side][r.cls] = (R.counts[side][r.cls] || 0) + 1; R.sum[side] += r.acc; R.n[side]++;
+  R.acc = { w: R.n.w ? R.sum.w / R.n.w : 100, b: R.n.b ? R.sum.b / R.n.b : 100 };
 }
 function renderReview() {
-  const on = S.mode === 'review';
-  $('#card-rmove').classList.toggle('hidden', !(on && R.status === 'done'));
+  const on = S.mode === 'review', has = R.rows.length > 0;
+  $('#card-rmove').classList.toggle('hidden', !(on && has && R.status !== 'idle'));
   if (!on) return;
   $('#rv-input').classList.toggle('hidden', R.status !== 'idle');
   $('#rv-progress').classList.toggle('hidden', R.status !== 'running');
-  $('#rv-summary').classList.toggle('hidden', R.status !== 'done');
+  $('#rv-summary').classList.toggle('hidden', !(R.status !== 'idle' && has));
   $('#btn-rv-new').classList.toggle('hidden', R.status === 'idle');
   document.querySelectorAll('#seg-speed button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === R.speed)));
-  if (R.status !== 'done') return;
+  if (R.status === 'idle' || !has) return;
   $('#rv-summary').innerHTML = buildSummary(R, S.ply);
   const i = S.ply - 1, row = R.rows[i];
-  $('#card-rmove').innerHTML = buildMoveCard({ row, ply: S.ply, san: S.moves[i]?.san, side: row?.side, bestSan: row?.bestSan, evalAfter: row?.evalAfter, evalBest: row?.evalBest, text: row?.text, busy: row?.busy, err: row?.err, canExplain: llmReady(), opening: R.opening });
+  $('#card-rmove').innerHTML = buildMoveCard({ row, ply: S.ply, san: S.moves[i]?.san, side: row?.side, bestSan: row?.bestSan, evalAfter: row?.evalAfter, evalBest: row?.evalBest, text: row?.text, busy: row?.busy, err: row?.err, canExplain: llmReady(), opening: R.opening, pending: R.status === 'running' && S.ply > 0 && !row });
 }
 function reviewView() {
   const row = S.ply ? R.rows[S.ply - 1] : null, arrows = [];

@@ -35,6 +35,7 @@ export class Engine {
       if (!sc) return;
       const pv = l.split(' pv ')[1].trim().split(' ');
       this.lines[mpv - 1] = { depth, type: sc[1], value: +sc[2], pv };
+      if (this.early && mpv === 1) this._maybeStop(depth, sc[1], +sc[2], pv[0]);
       this.cb && this.cb(this.lines.filter(Boolean), false);
     } else if (l.startsWith('bestmove')) {
       const wasSearching = this.searching; this.searching = false;
@@ -43,17 +44,27 @@ export class Engine {
       if (this.pending) { const p = this.pending; this.pending = null; this._start(p); }
     }
   }
-  _start({ fen, go, cb }) {
-    this.lines = []; this.cb = cb; this.searching = true;
+  /** Iterative-deepening early exit: stop once the best move and score have been stable for `n` depths. */
+  _maybeStop(depth, type, value, move) {
+    const e = this.early, h = this.hist;
+    if (!h.length || h[h.length - 1].depth !== depth) h.push({ depth, move, score: type === 'mate' ? value * 1000 : value });
+    else Object.assign(h[h.length - 1], { move, score: type === 'mate' ? value * 1000 : value });
+    if (depth < e.min || h.length < e.n) return;
+    const tail = h.slice(-e.n);
+    if (tail.every(x => x.move === tail[0].move) && Math.max(...tail.map(x => x.score)) - Math.min(...tail.map(x => x.score)) <= e.tol) { this.early = null; this.w.postMessage('stop'); }
+  }
+  _start({ fen, go, cb, early }) {
+    this.lines = []; this.cb = cb; this.searching = true; this.early = early || null; this.hist = [];
     this.w.postMessage('position fen ' + fen);
     this.w.postMessage('go ' + go);
   }
   /** `limit` is a think time in ms, or a raw UCI go string such as "depth 6 movetime 400". */
-  async analyse(fen, limit, cb) {
+  async analyse(fen, limit, cb, early) {
     await this.ready;
-    const job = { fen, go: typeof limit === 'number' ? 'movetime ' + limit : limit, cb };
+    const job = { fen, go: typeof limit === 'number' ? 'movetime ' + limit : limit, cb, early };
     if (this.searching) { this.pending = job; this.w.postMessage('stop'); }
     else this._start(job);
   }
+  terminate() { this.cb = null; this.pending = null; this.w.terminate(); }
   stop() { this.pending = null; if (this.searching) { this.cb = null; this.w.postMessage('stop'); } }
 }
