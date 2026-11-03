@@ -19,6 +19,9 @@
   --last: rgba(255, 207, 92, .55);
   --sel: rgba(88, 101, 242, .42);
   --a1: #5865f2; --a2: #2fa37a; --a3: #e8744f;
+  --c-indigo: #5865f2; --c-teal: #14b8a6; --c-coral: #f0644d; --c-amber: #f5a524; --c-pink: #e5488a; --c-sky: #3aa0ff;
+  --grad: linear-gradient(120deg, #5865f2 0%, #e5488a 52%, #f5a524 100%);
+  --grad-soft: linear-gradient(120deg, rgba(88,101,242,.14), rgba(229,72,138,.12) 55%, rgba(245,165,36,.14));
   --shadow-sm: 0 1px 2px rgba(25, 30, 70, .06);
   --shadow: 0 1px 2px rgba(25, 30, 70, .05), 0 8px 24px -8px rgba(25, 30, 70, .14);
   --r: 12px; --r-sm: 8px;
@@ -35,6 +38,9 @@
     --accent: #7380ff; --accent-hover: #8892ff; --accent-soft: rgba(115, 128, 255, .16);
     --ok: #46c498; --warn: #ef7d5c; --warn-soft: rgba(239, 125, 92, .12);
     --sq-l: #c8cee6; --sq-d: #7480ae;
+    --c-indigo: #7b86ff; --c-teal: #2dd4bf; --c-coral: #ff7a63; --c-amber: #ffbd45; --c-pink: #ff6ba6; --c-sky: #5cb8ff;
+    --grad: linear-gradient(120deg, #7b86ff 0%, #ff6ba6 52%, #ffbd45 100%);
+    --grad-soft: linear-gradient(120deg, rgba(123,134,255,.18), rgba(255,107,166,.14) 55%, rgba(255,189,69,.16));
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, .3); --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 28px -8px rgba(0, 0, 0, .5);
     color-scheme: dark;
 }
@@ -45,6 +51,9 @@
     --accent: #7380ff; --accent-hover: #8892ff; --accent-soft: rgba(115, 128, 255, .16);
     --ok: #46c498; --warn: #ef7d5c; --warn-soft: rgba(239, 125, 92, .12);
     --sq-l: #c8cee6; --sq-d: #7480ae;
+    --c-indigo: #7b86ff; --c-teal: #2dd4bf; --c-coral: #ff7a63; --c-amber: #ffbd45; --c-pink: #ff6ba6; --c-sky: #5cb8ff;
+    --grad: linear-gradient(120deg, #7b86ff 0%, #ff6ba6 52%, #ffbd45 100%);
+    --grad-soft: linear-gradient(120deg, rgba(123,134,255,.18), rgba(255,107,166,.14) 55%, rgba(255,189,69,.16));
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, .3); --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 28px -8px rgba(0, 0, 0, .5);
     color-scheme: dark;
   }
@@ -457,3 +466,32 @@ html { scrollbar-gutter: stable; }
   .rail button { flex: 1 0 62px; }
   .subnav { top: 0; }
 }
+
+/* ---------- bold multicolour identity ---------- */
+.brand b { font-weight: 850; font-size: 22px; letter-spacing: -.035em; background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.brand span { font-weight: 500; }
+.brand img { filter: drop-shadow(0 3px 8px rgba(229, 72, 138, .25)); }
+.card h2, .lesson-title, .rv-title b, .acc .n { font-weight: 800; }
+.card-h h2 { color: var(--ink); letter-spacing: .06em; }
+.card-h { position: relative; }
+.card-h::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--grad); opacity: .9; }
+#card-engine .card-h::before { background: linear-gradient(90deg, var(--c-teal), var(--c-sky)); }
+#card-moves .card-h::before { background: linear-gradient(90deg, var(--c-amber), var(--c-coral)); }
+#card-scan .card-h::before { background: linear-gradient(90deg, var(--c-pink), var(--c-indigo)); }
+#card-coach .card-h::before, #card-review .card-h::before { background: linear-gradient(90deg, var(--c-coral), var(--c-pink)); }
+.primary { background: var(--grad); background-size: 160% 100%; background-position: 0% 50%; font-weight: 750; letter-spacing: .01em; box-shadow: 0 6px 18px -8px rgba(229, 72, 138, .55); transition: background-position .4s ease, transform .08s, box-shadow .2s; }
+.primary:hover { background: var(--grad); background-position: 100% 50%; box-shadow: 0 10px 24px -8px rgba(229, 72, 138, .65); }
+.primary:disabled { box-shadow: none; }
+.btn:hover { border-color: var(--c-indigo); }
+.rail button { font-weight: 750; }
+.rail button[aria-checked="true"] { background: var(--grad-soft); border-color: transparent; color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--c-indigo); }
+.rail button[aria-checked="true"] .ic { color: var(--c-indigo); }
+.rail button:nth-child(2) .ic { color: var(--c-teal); }
+.rail button:nth-child(3) .ic { color: var(--c-coral); }
+.rail button:nth-child(4) .ic { color: var(--c-amber); }
+.rail button:nth-child(5) .ic { color: var(--c-pink); }
+.subnav button { font-weight: 800; }
+.subnav button[aria-selected="true"] { background: var(--grad-soft); color: var(--ink); box-shadow: inset 0 -3px 0 var(--c-pink); }
+.kicker { font-weight: 800; background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.tchip.cur { background: var(--grad-soft); border-color: var(--c-pink); color: var(--ink); font-weight: 800; }
+.lesson-stats b { font-weight: 800; background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
