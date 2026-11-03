@@ -22,7 +22,7 @@ const S = {
   orient: 'w', turn: 'w', castle: 'KQkq', placement: START,
   base: null, valid: true, moves: [], ply: 0,
   edit: false, tool: null, lines: [], uncertain: new Set(),
-  mode: store.get('mode', 'analysis'), hints: store.get('hints', false),
+  mode: store.get('mode', 'analysis'), time: store.get('time', 0), hints: store.get('hints', false),
   bot: { level: store.get('level', 'intermediate'), human: store.get('human', 'w') },
 };
 const MODES = {
@@ -41,11 +41,14 @@ const SPEEDS = {
   std: { go: 'depth 13 movetime 2500', early: { min: 9, n: 3, tol: 12 } },
   deep: { go: 'depth 16 movetime 5000', early: { min: 12, n: 4, tol: 8 } },
 };
+// chess clock (Player vs Player and Play the bot): starts after the first move, flag falls = loss on time
+const C = { w: 0, b: 0, running: null, last: 0, flag: null };
+const timed = () => (S.mode === 'pvp' || S.mode === 'bot') && S.time > 0;
 const vsBot = () => S.mode === 'bot' || S.mode === 'tutor';
 const LEVELS = {
-  easy: { label: 'Easy', desc: 'Makes plenty of mistakes, good for learning (~1000).', opts: { UCI_LimitStrength: false, 'Skill Level': 1 }, go: 'movetime 200' },
-  intermediate: { label: 'Intermediate', desc: 'Solid club player, still beatable (~1700).', opts: { 'Skill Level': 20, UCI_LimitStrength: true, UCI_Elo: 1700 }, go: 'movetime 500' },
-  expert: { label: 'Expert', desc: 'Full-strength Stockfish. Good luck.', opts: { UCI_LimitStrength: false, 'Skill Level': 20 }, go: 'movetime 1200' },
+  easy: { label: 'Easy', desc: 'Makes plenty of mistakes, good for learning (~1000).', opts: { UCI_LimitStrength: false, 'Skill Level': 1 }, go: 'depth 4 movetime 120' },
+  intermediate: { label: 'Intermediate', desc: 'Solid club player, still beatable (~1700).', opts: { 'Skill Level': 20, UCI_LimitStrength: true, UCI_Elo: 1700 }, go: 'depth 10 movetime 300' },
+  expert: { label: 'Expert', desc: 'Full-strength Stockfish. Good luck.', opts: { UCI_LimitStrength: false, 'Skill Level': 20 }, go: 'depth 14 movetime 700' },
 };
 
 // ---------- helpers ----------
@@ -87,7 +90,7 @@ function rebuildBase({ keepHistory = false } = {}) {
   const err = checkPosition(S.base);
   S.valid = !err;
   $('#warn').textContent = err || ''; $('#warn').classList.toggle('hidden', !err);
-  if (!keepHistory) { S.moves = []; S.ply = 0; T.entries = []; T.gen++; }
+  if (!keepHistory) { S.moves = []; S.ply = 0; T.entries = []; T.gen++; clockReset(); }
   S.lines = [];
   refresh();
   if (S.valid && autoOn() && !S.edit) analyse();
@@ -97,6 +100,7 @@ let batching = false;
 function play(from, to, promotion, byBot = false) {
   if (S.mode === 'review') return false;
   if (vsBot() && !byBot && !batching && curFen().split(' ')[1] !== S.bot.human) return false;
+  clockCharge();
   const g = game();
   let mv;
   try { mv = g.move({ from, to, promotion }); } catch { return false; }
@@ -105,6 +109,7 @@ function play(from, to, promotion, byBot = false) {
   T.entries.length = Math.min(T.entries.length, S.ply);
   if (S.mode === 'tutor' && !batching) queueMicrotask(() => coachMove(S.moves.length - 1));
   S.ply++; S.lines = []; S.uncertain = new Set();
+  if (!batching) clockSync();
   if (batching) return true;
   refresh();
   if (autoOn()) analyse(); else stopEngine();
@@ -114,7 +119,7 @@ function goto(ply) { if (S.mode === 'review') R.follow = false; S.ply = Math.max
 const autoOn = () => S.mode === 'analysis' && $('#auto').checked;
 /** Engine lines that the current mode lets the player see. */
 const shown = () => (S.mode === 'analysis' ? S.lines.slice(0, P.lines) : S.mode === 'pvp' && S.hints ? S.lines.slice(0, 1) : []);
-const humanCanMove = () => S.mode === 'review' ? false : !vsBot() || curFen().split(' ')[1] === S.bot.human;
+const humanCanMove = () => S.mode === 'review' || C.flag || (timed() && S.ply !== S.moves.length) ? false : !vsBot() || curFen().split(' ')[1] === S.bot.human;
 
 // ---------- rendering ----------
 let board;
@@ -141,15 +146,16 @@ function refresh() {
   else if (!S.valid) status = 'Position needs fixing';
   else if (S.mode === 'review') status = S.ply ? `After move ${Math.ceil(S.ply / 2)}${S.ply % 2 ? '' : '…'}` : 'Starting position';
   else if (vsBot()) status = humanCanMove() ? 'Your move' : 'Bot is thinking…';
+  if (C.flag) status = vsBot() ? (C.flag === S.bot.human ? 'Time out, the bot wins' : 'Time out, you win!') : `Time out, ${C.flag === 'w' ? 'Black' : 'White'} wins`;
   t.querySelector('span').textContent = status;
-  t.classList.toggle('over', !!g && g.isGameOver());
+  t.classList.toggle('over', (!!g && g.isGameOver()) || !!C.flag);
   if (g && g.isGameOver() && S.moves.length && S.ply === S.moves.length && S.endShown !== fen) { S.endShown = fen; toast(status, 4000); }
   // move box follows the side to move
   const mine = humanCanMove();
   const over = !g || g.isGameOver() || S.edit || !mine, side = turn === 'w' ? 'White' : 'Black';
   const tag = $('#side-tag'); tag.classList.toggle('b', turn === 'b'); tag.classList.toggle('off', over); tag.querySelector('b').textContent = side;
   const mi = $('#move-in'); mi.disabled = over;
-  mi.placeholder = !g ? 'Fix the position first' : S.edit ? 'Finish editing first' : g.isGameOver() ? status : !mine ? 'Waiting for the bot…' : `${side}'s move… (e4, Nf3, O-O)`;
+  mi.placeholder = !g ? 'Fix the position first' : S.edit ? 'Finish editing first' : g.isGameOver() || C.flag ? status : !mine ? (vsBot() && S.ply === S.moves.length ? 'Waiting for the bot…' : 'Go to the last move to play') : `${side}'s move… (e4, Nf3, O-O)`;
   renderMode(turn);
   // setup controls
   setSeg('#seg-orient', S.orient); setSeg('#seg-turn', turn);
@@ -228,13 +234,43 @@ function playLine(i) { const l = shown()[i]; if (l) { const u = l.pv[0]; play(u.
 const suggestLabel = () => (S.mode === 'pvp' ? 'Show hint' : P.lines === 1 ? 'Suggest best move' : `Suggest top ${P.lines}`);
 function stopEngine() { engine?.stop(); const b = $('#btn-suggest'); if (b) { b.disabled = false; $('#suggest-label').textContent = suggestLabel(); } }
 
+// ---------- clock ----------
+function clockReset() { C.w = C.b = S.time * 1000; C.running = null; C.last = performance.now(); C.flag = null; }
+function clockCharge(now = performance.now()) { if (C.running) C[C.running] = Math.max(0, C[C.running] - (now - C.last)); C.last = now; }
+/** Re-point the running clock at whoever is to move in the live position (call after any change to the game). */
+function clockSync() {
+  clockCharge();
+  const live = S.moves.length ? S.moves[S.moves.length - 1].fen : null;
+  C.running = timed() && live && !C.flag && !new Chess(live).isGameOver() ? live.split(' ')[1] : null;
+  renderClocks();
+}
+const clockLeft = side => Math.max(0, C[side] - (C.running === side ? performance.now() - C.last : 0));
+const fmtClock = ms => { const s = Math.ceil(ms / 100) / 10; return s < 20 ? `0:${s.toFixed(1).padStart(4, '0')}` : `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`; };
+function renderClocks() {
+  document.querySelectorAll('.player').forEach(el => {
+    const c = el.querySelector('.clock'), side = el.dataset.side; if (!c) return;
+    c.classList.toggle('hidden', !timed() || !side);
+    if (!timed() || !side) return;
+    const left = clockLeft(side); c.textContent = fmtClock(left);
+    c.classList.toggle('run', C.running === side); c.classList.toggle('low', left < 20000 && left < S.time * 1000 && (C.running === side || left === 0));
+  });
+}
+function clockTick() {
+  if (!C.running) return;
+  if (clockLeft(C.running) <= 0) {
+    C[C.running] = 0; C.flag = C.running; C.running = null; botJob = null; botEngine?.stop(); stopEngine(); refresh();
+    toast(vsBot() ? (C.flag === S.bot.human ? 'Time out, the bot wins' : 'Time out, you win!') : `Time out, ${C.flag === 'w' ? 'Black' : 'White'} wins`, 4000);
+  } else renderClocks();
+}
+setInterval(clockTick, 100);
+
 // ---------- bot ----------
 let botEngine = null, botJob = null;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 function botTurn() {
   if (!vsBot() || !S.valid || S.edit || S.ply !== S.moves.length) return null;
   const fen = curFen();
-  return new Chess(fen).isGameOver() || fen.split(' ')[1] === S.bot.human ? null : fen;
+  return C.flag || new Chess(fen).isGameOver() || fen.split(' ')[1] === S.bot.human ? null : fen;
 }
 /** Idempotent: starts / cancels the bot's search so it matches the current position. */
 function syncBot() {
@@ -247,7 +283,7 @@ function syncBot() {
       botEngine.setOptions(lv.opts);
       botEngine.analyse(want, lv.go, async (_l, done, best) => {
         if (!done || botJob !== job) return;
-        await sleep(Math.max(0, 450 - (performance.now() - t0)));   // feel less instant
+        await sleep(Math.max(0, 200 - (performance.now() - t0)));   // just enough to feel natural
         if (botJob !== job || curFen() !== want) return;
         botJob = null;
         if (best) play(best.slice(0, 2), best.slice(2, 4), best[4], true); else refresh();
@@ -268,7 +304,11 @@ function renderMode(turn) {
   document.querySelectorAll('#seg-level button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === S.bot.level)));
   document.querySelectorAll('#seg-human button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === S.bot.human)));
   $('#level-desc').textContent = LEVELS[S.bot.level].desc;
-  $('#btn-takeback').disabled = !S.moves.length || S.ply === 0;
+  $('#btn-takeback').disabled = !S.moves.length || S.ply === 0 || timed();
+  $('#btn-takeback').title = timed() ? 'Not available in timed games' : '';
+  $('#opts-time').classList.toggle('hidden', S.mode !== 'pvp' && S.mode !== 'bot');
+  document.querySelectorAll('#seg-time button').forEach(b => b.setAttribute('aria-checked', String(+b.dataset.v === S.time)));
+  renderClocks();
   // engine card: top-3 in analysis, single hint in pvp, hidden when hints are off or vs the bot
   const eng = S.mode === 'analysis' || (S.mode === 'pvp' && S.hints);
   $('#card-engine').classList.toggle('hidden', !eng);
@@ -278,7 +318,7 @@ function renderMode(turn) {
   // player bars: bottom of the screen = S.orient
   const bot = vsBot();
   for (const [el, side] of [[$('#pl-top'), S.orient === 'w' ? 'b' : 'w'], [$('#pl-bot'), S.orient]]) {
-    el.classList.toggle('black', side === 'b'); el.classList.toggle('active', turn === side && S.valid);
+    el.dataset.side = side; el.classList.toggle('black', side === 'b'); el.classList.toggle('active', turn === side && S.valid);
     const isBot = bot && side !== S.bot.human;
     el.querySelector('b').textContent = isBot ? `Bot · ${LEVELS[S.bot.level].label}` : bot ? 'You' : side === 'w' ? 'White' : 'Black';
     el.querySelector('.sub').textContent = bot ? (side === 'w' ? 'White' : 'Black') : '';
@@ -290,11 +330,13 @@ function renderMode(turn) {
   renderReview();
   $('#move-tip').textContent = bot ? 'Drag a piece or type your move. Take back to try a different line.' : 'Type a move, or drag pieces on the board. Paste a move list or PGN to rebuild a game.';
 }
+function warmBot() { botEngine ??= new Engine({ multipv: 1, single: true }); botEngine.setOptions(LEVELS[S.bot.level].opts); }
 function setMode(m) {
   if (m === S.mode) return;
   S.mode = m; store.set('mode', m);
   S.lines = []; stopEngine();
-  if (m === 'bot' || m === 'tutor') S.orient = S.bot.human;
+  if (m === 'bot' || m === 'tutor') { S.orient = S.bot.human; warmBot(); }
+  clockReset();
   if (R.status === 'running') cancelReview();
   if (m === 'tutor') { T.entries = []; T.gen++; }
   refresh();
@@ -322,11 +364,11 @@ function resetState({ settings }) {
   cancelReview(); R.rows = [];
   clearScan();
   if (settings) {
-    S.mode = 'analysis'; S.hints = false; S.bot = { level: 'intermediate', human: 'w' };
+    S.mode = 'analysis'; S.hints = false; S.time = 0; S.bot = { level: 'intermediate', human: 'w' };
     Object.assign(P, PREF_DEFAULTS); applyPrefs(); engine?.setOptions({ MultiPV: P.lines });
     $('#auto').checked = false; $('#think').value = '1500';
     delete document.documentElement.dataset.theme; $('#btn-theme use').setAttribute('href', matchMedia('(prefers-color-scheme: dark)').matches ? '#i-sun' : '#i-moon');
-    for (const k of ['mode', 'hints', 'level', 'human', 'orient', 'auto', 'think', 'theme', 'speed', 'prefs']) try { localStorage.removeItem('augur:' + k); } catch { /* ignore */ }
+    for (const k of ['mode', 'hints', 'level', 'human', 'orient', 'auto', 'think', 'theme', 'speed', 'prefs', 'time']) try { localStorage.removeItem('augur:' + k); } catch { /* ignore */ }
   }
   Object.assign(S, { orient: vsBot() ? S.bot.human : 'w', turn: 'w', castle: 'KQkq', placement: START, edit: false, tool: null, lines: [], uncertain: new Set(), endShown: null });
   rebuildBase();
@@ -346,7 +388,7 @@ function takeBack() {
   let p = S.ply - 1;
   while (p > 0 && S.moves[p - 1].fen.split(' ')[1] !== S.bot.human) p--;
   S.moves = S.moves.slice(0, Math.max(0, p)); S.ply = S.moves.length; S.lines = []; T.entries.length = Math.min(T.entries.length, S.ply);
-  refresh();
+  clockSync(); refresh();
 }
 
 // ---------- shared analysis (tutor + review) ----------
@@ -436,6 +478,7 @@ function coachMove(i) {
   T.entries[i] = entry; renderFeed();
   const gen = T.gen, live = () => T.gen === gen && T.entries[i] === entry;
   (async () => {
+    for (let w = 0; botJob && w < 40; w++) await sleep(100);   // let the bot move first, then grade
     const [before, after] = await Promise.all([evalFen(fenBefore, COACH_MS), evalFen(fenAfter, COACH_MS)]);
     if (!live()) return;
     const sans = S.moves.slice(0, i + 1).map(m => m.san);
@@ -855,6 +898,11 @@ function init() {
   paintTheme();
   $('#btn-new').addEventListener('click', newGame);
   $('#btn-takeback').addEventListener('click', takeBack);
+  $('#seg-time').addEventListener('click', async e => {
+    const b = e.target.closest('button[data-v]'); if (!b || +b.dataset.v === S.time) return;
+    if (S.moves.length && !(await confirmDialog('Change time control?', 'The clocks will restart from the new time.', 'Change'))) return;
+    S.time = +b.dataset.v; store.set('time', S.time); clockReset(); clockSync(); refresh();
+  });
   $('#seg-mode').addEventListener('click', e => { const b = e.target.closest('button[data-v]'); if (b) setMode(b.dataset.v); });
   $('#seg-level').addEventListener('click', e => { const b = e.target.closest('button[data-v]'); if (!b) return; S.bot.level = b.dataset.v; store.set('level', b.dataset.v); botJob = null; botEngine?.stop(); refresh(); });
   $('#seg-human').addEventListener('click', e => { const b = e.target.closest('button[data-v]'); if (b) setHuman(b.dataset.v); });
@@ -940,7 +988,7 @@ function importMoves(text) {
     if (!done) { bad = t; break; }
     ok++;
   }
-  batching = false;
+  batching = false; clockSync();
   if (!ok && fullGame) { Object.assign(S, snapshot); }
   S.lines = []; refresh();
   if (ok && autoOn()) analyse();

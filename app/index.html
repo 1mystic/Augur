@@ -61,9 +61,9 @@
         <div class="board-wrap">
           <div class="evalbar" id="evalbar" title="Evaluation"><div class="fill"></div><span id="evaltext">0.0</span></div>
           <div class="board-stack">
-            <div class="player" id="pl-top"><i class="chip"></i><b></b><span class="sub"></span><span class="think hidden"><u></u><u></u><u></u></span></div>
+            <div class="player" id="pl-top"><i class="chip"></i><b></b><span class="sub"></span><span class="think hidden"><u></u><u></u><u></u></span><span class="clock hidden">0:00</span></div>
             <div id="board"></div>
-            <div class="player" id="pl-bot"><i class="chip"></i><b></b><span class="sub"></span><span class="think hidden"><u></u><u></u><u></u></span></div>
+            <div class="player" id="pl-bot"><i class="chip"></i><b></b><span class="sub"></span><span class="think hidden"><u></u><u></u><u></u></span><span class="clock hidden">0:00</span></div>
           </div>
         </div>
         <div class="under">
@@ -111,6 +111,12 @@
               <div class="seg" id="seg-human" role="radiogroup" aria-label="Your colour"><button type="button" role="radio" data-v="w">White</button><button type="button" role="radio" data-v="b">Black</button></div>
             </div>
             <button class="btn full" id="btn-takeback" type="button"><svg class="ic"><use href="#i-undo"/></svg><span>Take back last move</span></button>
+          </div>
+          <div class="opts hidden" id="opts-time">
+            <div class="row stack">
+              <span class="lbl">Time control</span>
+              <div class="seg wide" id="seg-time" role="radiogroup" aria-label="Time control"><button type="button" role="radio" data-v="0">Untimed</button><button type="button" role="radio" data-v="180">3 min</button><button type="button" role="radio" data-v="300">5 min</button><button type="button" role="radio" data-v="600">10 min</button></div>
+            </div>
           </div>
         </div>
       </div>
