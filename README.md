@@ -4,7 +4,7 @@
 
 paste a screenshot of a chessboard → the position is read locally in under a second → keep playing it move by move for either side → ask stockfish for the top 3 moves whenever you want.
 
-no API keys, no server, works offline. web app (installable PWA) + native desktop app (macOS / Ubuntu / any Linux) from the same code.
+no server, works offline (the optional AI tutor is the only thing that talks to the network, and only if you add your own key). web app (installable PWA) + native desktop app (macOS / Ubuntu / any Linux) from the same code.
 
 ```
 screenshot ──► board detector ──► 64 tiles ──► tiny CNN (≈400 KB) ──► FEN ──► chess.js ◄──► you
@@ -14,6 +14,27 @@ screenshot ──► board detector ──► 64 tiles ──► tiny CNN (≈40
 ```
 
 <p align="center"><img src="docs/flow.svg" alt="pipeline" width="100%"></p>
+
+<p align="center">
+  <img src="docs/screenshot-analysis.png" alt="analysis mode with top-3 Stockfish lines" width="49%">
+  <img src="docs/screenshot-review.png" alt="chess.com-style game review" width="49%">
+</p>
+<p align="center">
+  <img src="docs/screenshot-bot.png" alt="playing the bot" width="49%">
+  <img src="docs/screenshot-mobile.png" alt="mobile layout, dark theme" width="24%">
+</p>
+
+## modes
+
+| mode | what you get |
+|---|---|
+| **Analysis** | scan a screenshot, explore lines, top-3 Stockfish suggestions with eval bar. |
+| **Player vs Player** | two humans, one board. optional **hints** (off by default): Stockfish shows a single suggested move on request. |
+| **Play the bot** | Stockfish at three levels — *Easy* (~1000), *Intermediate* (~1700, Elo-limited), *Expert* (full strength). pick your colour, take moves back. |
+| **Tutor lesson** | play the bot while a tutor explains every move (yours and the bot's) in plain English. each move is graded (best / good / inaccuracy / mistake / blunder…) by Stockfish; the wording comes from an LLM using **your own API key** (Anthropic, OpenAI, Gemini, OpenRouter or any OpenAI-compatible/local endpoint). without a key you still get the engine's verdict and the better move. |
+| **Game review** | paste a PGN exported from chess.com, lichess or any app (or open a `.pgn`, or review the game you just played). you get accuracy for both sides, an eval graph, a classification table (brilliant → blunder), the opening name, "previous / next mistake" navigation, a best-move arrow plus badge on the board, and an optional "explain this move" via the AI tutor. |
+
+settings (gear icon): provider, API key and model for the AI tutor. the key lives in this browser's `localStorage` and is sent only to the provider you pick. there is also a light/dark theme toggle and a one-click **Reset** back to defaults.
 
 ## what it does
 
@@ -62,6 +83,16 @@ native adds one thing over the web build: clipboard images are read through the 
 
 full-screenshot tests are synthetic (UI bars, highlights, coords, jpeg). real chess.com piece styles aren't open-licence so they're not in training — if a set misreads, amber rings show which squares to fix, and the AI-chat route is always there.
 
+### deploy on vercel (free tier)
+
+the repo ships `vercel.json` (repo root) and `app/vercel.json` (if you set *Root Directory* to `app`). they:
+
+- build with `npm ci` + `vite build` and serve `app/dist` — a ~5 MB static site, no functions, so it sits comfortably inside the free plan;
+- add `Cross-Origin-Opener/Embedder-Policy` headers → cross-origin isolation → **multi-threaded Stockfish**;
+- cache `/assets/*` as immutable (hashed file names) and the engine / model / pieces for a day with stale-while-revalidate, so repeat visits cost almost no bandwidth; `sw.js` and `index.html` always revalidate.
+
+`.vercelignore` keeps training code and tests out of CLI uploads.
+
 ## the vision model
 
 trained from scratch — see `train/`.
@@ -88,7 +119,10 @@ python make_tests.py ../tests/shots 24 alpha,staunty,leipzig   # full screenshot
 app/
   index.html, src/main.js     UI + state (history, branching, setup)
   src/board.js                board: drag/click, legal dots, arrows, edit mode, promotion
-  src/engine.js               stockfish worker wrapper, MultiPV 3, stop/restart queue
+  src/engine.js               stockfish worker wrapper (MultiPV, UCI options, stop/restart queue)
+  src/coach.js                eval maths, move classification, accuracy, opening names
+  src/llm.js                  bring-your-own-key LLM client (Anthropic / OpenAI-compatible)
+  src/review.js               HTML builders for the review + tutor panels
   src/vision/                 detector + CNN
   public/engine/              stockfish-19-lite-single.{js,wasm}
   public/model/               augur.{bin,json}
