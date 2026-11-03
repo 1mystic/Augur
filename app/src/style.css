@@ -255,8 +255,8 @@ dialog { border: 1px solid var(--border); border-radius: var(--r); background: v
 dialog::backdrop { background: rgba(14, 16, 30, .45); backdrop-filter: blur(2px); }
 dialog h3 { margin: 0; font-size: 17px; letter-spacing: -.01em; }
 .dlg-h { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-#settings { max-width: 500px; padding: 0; }
-#settings .dlg-h { padding: 18px 22px 0; }
+#settings, #export { max-width: 500px; padding: 0; }
+#settings .dlg-h, #export .dlg-h { padding: 18px 22px 0; }
 .dlg-body { display: grid; gap: 12px; padding: 4px 22px 14px; max-height: min(66vh, 640px); overflow: auto; }
 .dlg-foot { display: flex; align-items: center; gap: 8px; padding: 12px 22px; border-top: 1px solid var(--border); background: var(--surface-2); border-radius: 0 0 var(--r) var(--r); }
 .set-sec .row { gap: 14px; } .set-sec .seg button { padding: 5px 10px; }
@@ -412,3 +412,9 @@ html { scrollbar-gutter: stable; }
 .mchip.good { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
 .mchip.bad { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
 .mchip.missed { color: #c48a12; border-color: rgba(196, 138, 18, .45); }
+
+/* ---------- export ---------- */
+.hdr-btns { display: flex; gap: 6px; }
+.ex-text { width: 100%; border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r-sm); padding: 8px 10px; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; resize: vertical; color: var(--ink); }
+.ex-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+#export .set-sec { gap: 10px; }

@@ -33,6 +33,9 @@
       <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></symbol>
       <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
       <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></symbol>
+      <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></symbol>
+      <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></symbol>
+      <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></symbol>
       <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
       <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></symbol>
       <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
@@ -170,7 +173,7 @@
       <div class="card hidden" id="card-rmove"></div>
 
       <div class="card" id="card-moves">
-        <div class="card-h"><h2>Moves</h2><button class="btn sm" id="btn-reset" type="button" title="Rewind to the first position"><svg class="ic"><use href="#i-undo"/></svg><span>Rewind</span></button></div>
+        <div class="card-h"><h2>Moves</h2><div class="hdr-btns"><button class="btn sm" id="btn-export" type="button" title="Export or share this game"><svg class="ic"><use href="#i-share"/></svg><span>Export</span></button><button class="btn sm" id="btn-reset" type="button" title="Rewind to the first position"><svg class="ic"><use href="#i-undo"/></svg><span>Rewind</span></button></div></div>
         <div class="card-b">
           <form id="move-form" autocomplete="off"><span class="side-tag" id="side-tag"><i></i><b>White</b></span><input id="move-in" placeholder="White's move: e4, Nf3, O-O…" aria-label="Enter a move" /></form>
           <p class="muted small tip" id="move-tip">Type a move, or drag pieces on the board. Paste a move list or PGN to rebuild a game.</p>
@@ -274,6 +277,34 @@
       </section>
     </div>
     <div class="dlg-foot"><button class="btn" id="btn-prefs-reset" type="button">Restore defaults</button><span class="grow"></span><button class="primary auto" data-close type="button">Done</button></div>
+  </dialog>
+  <dialog id="export">
+    <div class="dlg-h"><h3>Export &amp; share</h3><button class="btn icon sm" data-close type="button" aria-label="Close"><svg class="ic"><use href="#i-close"/></svg></button></div>
+    <div class="dlg-body">
+      <section class="set-sec">
+        <h4>PGN</h4>
+        <div class="row"><div class="lbl-col"><span class="lbl">Include analysis</span><span class="muted small" id="ex-annot-hint">Move grades and engine evaluations as PGN comments</span></div>
+          <label class="switch"><input type="checkbox" id="ex-annot" aria-label="Include analysis" /><span></span></label></div>
+        <textarea id="ex-pgn" class="ex-text" rows="8" readonly spellcheck="false" aria-label="PGN"></textarea>
+        <div class="ex-btns">
+          <button class="btn sm" id="ex-copy-pgn" type="button"><svg class="ic"><use href="#i-copy"/></svg><span>Copy PGN</span></button>
+          <button class="btn sm" id="ex-download" type="button"><svg class="ic"><use href="#i-download"/></svg><span>Download .pgn</span></button>
+          <button class="btn sm hidden" id="ex-native" type="button"><svg class="ic"><use href="#i-share"/></svg><span>Share…</span></button>
+        </div>
+      </section>
+      <section class="set-sec">
+        <h4>Current position (FEN)</h4>
+        <div class="input-row"><input id="ex-fen" class="ex-text" readonly spellcheck="false" aria-label="FEN" /><button class="btn" id="ex-copy-fen" type="button">Copy</button></div>
+      </section>
+      <section class="set-sec">
+        <h4>Share</h4>
+        <div class="ex-btns">
+          <button class="btn sm" id="ex-link" type="button"><svg class="ic"><use href="#i-link"/></svg><span>Copy share link</span></button>
+          <button class="btn sm" id="ex-lichess" type="button">Open in Lichess</button>
+        </div>
+        <p class="muted small">The link carries the moves itself; nothing is uploaded. Opening it loads the game into Augur.</p>
+      </section>
+    </div>
   </dialog>
   <dialog id="confirm">
     <h3 id="confirm-title">Are you sure?</h3>

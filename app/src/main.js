@@ -726,6 +726,142 @@ function wireReview() {
   $('#card-rmove').addEventListener('click', e => { if (e.target.closest('[data-explain]')) explainRow(S.ply - 1); });
 }
 
+// ---------- export & share ----------
+const NAG = { brilliant: '$3', great: '$1', inaccuracy: '$6', mistake: '$2', miss: '$4', blunder: '$4' };
+/** Grade + evaluations for move i, from the review or the tutor, when available. */
+const annotOf = i => (S.mode === 'review' ? R.rows[i] : S.mode === 'tutor' ? (T.entries[i]?.cls ? T.entries[i] : null) : null);
+const hasAnnotations = () => S.moves.some((_, i) => annotOf(i));
+function pgnEval(ev, fen) {
+  if (!ev || ev.terminal) return '';
+  const sgn = fen.split(' ')[1] === 'w' ? 1 : -1;
+  if (ev.mate !== undefined && ev.mate !== null) return `[%eval #${ev.mate * sgn}]`;
+  return `[%eval ${((ev.cp * sgn) / 100).toFixed(2)}]`;
+}
+function gameResult() {
+  if (C.flag) return C.flag === 'w' ? '0-1' : '1-0';
+  const live = S.moves.length ? S.moves[S.moves.length - 1].fen : S.base, g = new Chess(live);
+  if (g.isCheckmate()) return g.turn() === 'w' ? '0-1' : '1-0';
+  if (g.isDraw() || g.isStalemate()) return '1/2-1/2';
+  return '*';
+}
+/** Standard PGN (export format: seven tag roster, 80-column movetext, NAGs and [%eval] comments when annotating). */
+function buildPgn({ annotate = false } = {}) {
+  const d = new Date(), date = `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+  const bot = vsBot(), lv = LEVELS[S.bot.level]?.label;
+  const names = { w: 'White', b: 'Black' };
+  if (bot) { names[S.bot.human] = 'You'; names[S.bot.human === 'w' ? 'b' : 'w'] = `Stockfish (${lv})`; }
+  const rh = S.mode === 'review' ? R.headers || {} : {};
+  const result = rh.Result && rh.Result !== '*' && S.mode === 'review' ? rh.Result : gameResult();
+  const tags = {
+    Event: rh.Event || { analysis: 'Augur analysis', pvp: 'Augur casual game', bot: 'Augur vs bot', tutor: 'Augur tutor lesson', review: 'Augur review' }[S.mode],
+    Site: rh.Site || 'Augur', Date: rh.Date || date, Round: rh.Round || '-',
+    White: rh.White || names.w, Black: rh.Black || names.b, Result: result,
+  };
+  for (const k of ['WhiteElo', 'BlackElo', 'ECO', 'Opening', 'Termination']) if (rh[k]) tags[k] = rh[k];
+  if (!rh.Opening && S.base === START_FEN) { const o = openingName(S.moves.map(m => m.san)); if (o) tags.Opening = o; }
+  if (S.time && (S.mode === 'pvp' || S.mode === 'bot')) tags.TimeControl = String(S.time);
+  if (S.base !== START_FEN) { tags.SetUp = '1'; tags.FEN = S.base; }
+  if (annotate) tags.Annotator = 'Augur (Stockfish 19 lite)';
+  const head = Object.entries(tags).map(([k, v]) => `[${k} "${String(v).replace(/\\/g, '').replace(/"/g, "'")}"]`).join('\n');
+  // movetext
+  const parts = [], fen0 = S.base.split(' ');
+  let num = +fen0[5] || 1, black = fen0[1] === 'b', resume = false;
+  S.moves.forEach((m, i) => {
+    if (!black) parts.push(`${num}.`); else if (i === 0 || resume) parts.push(`${num}...`);
+    resume = false;
+    parts.push(m.san);
+    const a = annotate ? annotOf(i) : null;
+    if (a) {
+      if (NAG[a.cls]) parts.push(NAG[a.cls]);
+      const ev = pgnEval(a.after, m.fen);
+      const note = ['inaccuracy', 'mistake', 'miss', 'blunder'].includes(a.cls) && a.bestSan ? `${CLASSES[a.cls].label}. ${a.bestSan} was best.` : '';
+      if (ev || note) { parts.push(`{ ${[ev, note].filter(Boolean).join(' ')} }`); resume = !black; }   // after a comment on White's move, Black's move restates "N..." 
+    }
+    if (black) num++;
+    black = !black;
+  });
+  parts.push(result);
+  const lines = []; let cur = '';
+  for (const p of parts) { if (cur && (cur + ' ' + p).length > 79) { lines.push(cur); cur = p; } else cur = cur ? cur + ' ' + p : p; }
+  if (cur) lines.push(cur);
+  return `${head}\n\n${lines.join('\n')}\n`;
+}
+/** Compact, upload-free share link: the moves (and a custom start) travel in the URL fragment. */
+function shareLink() {
+  const params = new URLSearchParams();
+  if (S.base !== START_FEN) params.set('fen', S.base);
+  params.set('moves', S.moves.map(m => m.from + m.to + (m.promotion || '')).join(' '));
+  return `${location.origin}${location.pathname}#${params.toString()}`;
+}
+/** Open a shared link: rebuild the game from the fragment, then clean the address bar. */
+function loadFromHash() {
+  const h = new URLSearchParams(location.hash.slice(1));
+  if (!h.has('moves') && !h.has('pgn')) return;
+  try {
+    let game;
+    if (h.has('pgn')) game = parseGame(h.get('pgn'));
+    else {
+      const startFen = h.get('fen') || START_FEN, g = new Chess(startFen), moves = [];
+      for (const u of (h.get('moves') || '').split(/[\s,]+/).filter(Boolean)) {
+        const mv = g.move({ from: u.slice(0, 2), to: u.slice(2, 4), promotion: u[4] });
+        moves.push({ san: mv.san, from: mv.from, to: mv.to, promotion: mv.promotion, fen: g.fen() });
+      }
+      game = { headers: {}, startFen, moves };
+    }
+    if (S.mode !== 'analysis') { S.mode = 'analysis'; store.set('mode', 'analysis'); }
+    const f = game.startFen.split(' ');
+    Object.assign(S, { placement: f[0], turn: f[1], castle: f[2] === '-' ? '' : f[2], uncertain: new Set(), edit: false });
+    rebuildBase();
+    S.moves = game.moves; S.ply = game.moves.length; refresh();
+    toast(`Shared game loaded (${game.moves.length} moves)`);
+  } catch { toast('That share link could not be read'); }
+  history.replaceState(null, '', location.pathname + location.search);
+}
+function copyText(text, msg) {
+  const fallback = () => { const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); toast(msg); };
+  navigator.clipboard?.writeText(text).then(() => toast(msg), fallback) ?? fallback();
+}
+function downloadText(text, name) {
+  if (IS_TAURI) { copyText(text, 'PGN copied (save it from your clipboard)'); return; }   // webviews ignore download links
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: 'application/x-chess-pgn' })); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  toast('PGN downloaded');
+}
+function openExport() {
+  if (!S.valid) { toast('Fix the position first'); return; }
+  const can = hasAnnotations(), annot = $('#ex-annot');
+  annot.disabled = !can; if (!can) annot.checked = false;
+  $('#ex-annot-hint').textContent = can ? 'Move grades and engine evaluations as PGN comments' : 'Available after a game review or a tutor lesson';
+  const paint = () => { $('#ex-pgn').value = buildPgn({ annotate: annot.checked }); };
+  annot.onchange = paint; paint();
+  $('#ex-fen').value = curFen();
+  $('#ex-native').classList.toggle('hidden', !navigator.share);
+  $('#export').showModal();
+}
+function wireExport() {
+  const name = () => { const d = new Date(); return `augur-${d.toISOString().slice(0, 16).replace(/[T:]/g, '-')}.pgn`; };
+  $('#btn-export').addEventListener('click', openExport);
+  $('#ex-copy-pgn').addEventListener('click', () => copyText($('#ex-pgn').value, 'PGN copied'));
+  $('#ex-download').addEventListener('click', () => downloadText($('#ex-pgn').value, name()));
+  $('#ex-copy-fen').addEventListener('click', () => copyText($('#ex-fen').value, 'FEN copied'));
+  $('#ex-link').addEventListener('click', () => copyText(shareLink(), 'Share link copied'));
+  $('#ex-lichess').addEventListener('click', () => {
+    // Lichess's analysis board takes a PGN in the URL; a custom start position goes in as a FEN
+    const url = S.base === START_FEN
+      ? 'https://lichess.org/analysis/pgn/' + encodeURIComponent(S.moves.map((m, i) => (i % 2 ? '' : `${i / 2 + 1}. `) + m.san).join(' '))
+      : 'https://lichess.org/analysis/' + curFen().replace(/ /g, '_');
+    window.open(url, '_blank', 'noopener');
+  });
+  $('#ex-native').addEventListener('click', async () => {
+    const text = $('#ex-pgn').value, file = new File([text], name(), { type: 'application/x-chess-pgn' });
+    try {
+      if (navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file], title: 'Chess game (PGN)' });
+      else await navigator.share({ title: 'Chess game', text: `${text}\n${shareLink()}` });
+    } catch (e) { if (e.name !== 'AbortError') toast('Sharing is not available here'); }
+  });
+}
+
 // ---------- custom select ----------
 /** Replace a native <select> with a styled listbox; the select stays the source of truth (value + 'change'). */
 function enhanceSelect(sel, { small = false } = {}) {
@@ -993,7 +1129,7 @@ function init() {
   $('#auto').addEventListener('change', e => { store.set('auto', e.target.checked); if (e.target.checked) analyse(); });
   $('#think').addEventListener('change', e => store.set('think', e.target.value));
   $('#btn-help').addEventListener('click', () => $('#help').showModal());
-  wireReview(); wireSettings(); wirePrefs(); applyPrefs();
+  wireReview(); wireSettings(); wirePrefs(); applyPrefs(); wireExport();
   enhanceSelect($('#llm-provider')); enhanceSelect($('#think'), { small: true });
   document.addEventListener('click', e => { const c = e.target.closest('[data-close]'); if (c) c.closest('dialog').close(); });
   $('#settings').addEventListener('click', e => { const r = e.currentTarget.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) e.currentTarget.close(); });
@@ -1165,4 +1301,6 @@ function loadFen(fen) {
 }
 
 init();
+loadFromHash();
+window.addEventListener('hashchange', loadFromHash);
 window.__augur = { S, scan, curFen };
