@@ -38,7 +38,7 @@ const MODES = {
 };
 // per-mode extras
 const T = { entries: [], gen: 0 };                                   // tutor feed
-const R = { status: 'idle', run: 0, rows: [], evals: [], ws: [], counts: { w: {}, b: {} }, acc: { w: 0, b: 0 }, headers: {}, opening: null, speed: ['fast', 'std', 'deep'].includes(store.get('speed')) ? store.get('speed') : 'std' };
+const R = { status: 'idle', run: 0, rows: [], evals: [], ws: [], counts: { w: {}, b: {} }, acc: { w: 0, b: 0 }, headers: {}, opening: null, speed: ['fast', 'std', 'deep'].includes(store.get('speed')) ? store.get('speed') : 'std', showBest: store.get('rvbest', true) };
 // depth-limited (not time-limited): easy positions finish in a few ms, so reviews are quick; movetime is only a safety cap
 // Two passes, the same trick fast review sites use: a shallow pass gives the whole review almost at once,
 // then a deeper pass refines it in the background. Depth limits plus an early exit keep easy positions cheap.
@@ -111,7 +111,15 @@ function rebuildBase({ keepHistory = false } = {}) {
 
 let batching = false;
 function play(from, to, promotion, byBot = false) {
-  if (S.mode === 'review') return false;
+  if (S.mode === 'review') {
+    if (R.status !== 'done') return false;
+    const main = R.mainMoves?.[S.ply];
+    if (main && onMain(S.ply) && main.from === from && main.to === to && (main.promotion || '') === (promotion || '')) {
+      if (R.explore && S.ply === R.explore.from) resetToGame(S.ply + 1); else goto(S.ply + 1);   // the game's own move: just follow it
+      return true;
+    }
+    R.explore = { from: R.explore ? Math.min(R.explore.from, S.ply) : S.ply };   // a new move: start (or re-root) your own line
+  }
   if (vsBot() && !byBot && !batching && curFen().split(' ')[1] !== S.bot.human) return false;
   clockCharge();
   const g = game();
@@ -125,14 +133,18 @@ function play(from, to, promotion, byBot = false) {
   if (!batching) clockSync();
   if (batching) return true;
   refresh();
-  if (autoOn()) analyse(); else stopEngine();
+  if (autoOn() || reviewLive()) analyse(); else stopEngine();
   return true;
 }
-function goto(ply) { if (S.mode === 'review') R.follow = false; S.ply = Math.max(0, Math.min(S.moves.length, ply)); S.lines = []; refresh(); if (autoOn()) analyse(); }
+function goto(ply) { if (S.mode === 'review') R.follow = false; S.ply = Math.max(0, Math.min(S.moves.length, ply)); S.lines = []; refresh(); if (autoOn() || reviewLive()) analyse(); else if (S.mode === 'review') stopEngine(); }
+/** Review exploration: positions up to the branch point are the reviewed game; after it they are the user's own line. */
+const onMain = ply => !R.explore || ply <= R.explore.from;
+const reviewLive = () => S.mode === 'review' && R.status === 'done' && !onMain(S.ply);
+const reviewRowAt = i => (onMain(i + 1) ? R.rows[i] : null);
 const autoOn = () => S.mode === 'analysis' && $('#auto').checked;
 /** Engine lines that the current mode lets the player see. */
 const shown = () => (S.mode === 'analysis' ? S.lines.slice(0, P.lines) : S.mode === 'pvp' && S.hints ? S.lines.slice(0, 1) : []);
-const humanCanMove = () => S.mode === 'review' || C.flag || (timed() && S.ply !== S.moves.length) ? false : !vsBot() || curFen().split(' ')[1] === S.bot.human;
+const humanCanMove = () => S.mode === 'review' ? R.status === 'done' && S.valid : C.flag || (timed() && S.ply !== S.moves.length) ? false : !vsBot() || curFen().split(' ')[1] === S.bot.human;
 
 // ---------- rendering ----------
 let board;
@@ -157,7 +169,7 @@ function refresh() {
   else if (g && g.isStalemate()) status = 'Stalemate, draw';
   else if (g && g.isDraw()) status = 'Draw';
   else if (!S.valid) status = 'Position needs fixing';
-  else if (S.mode === 'review') status = S.ply ? `After move ${Math.ceil(S.ply / 2)}${S.ply % 2 ? '' : '…'}` : 'Starting position';
+  else if (S.mode === 'review') status = reviewLive() ? `Your line · ${turn === 'w' ? 'White' : 'Black'} to move` : S.ply ? `After move ${Math.ceil(S.ply / 2)}${S.ply % 2 ? '' : '…'}` : 'Starting position';
   else if (vsBot()) status = S.ply !== S.moves.length ? 'Viewing an earlier move' : humanCanMove() ? 'Your move' : 'Bot is thinking…';
   if (C.flag) status = vsBot() ? (C.flag === S.bot.human ? 'Time out, the bot wins' : 'Time out, you win!') : `Time out, ${C.flag === 'w' ? 'Black' : 'White'} wins`;
   t.querySelector('span').textContent = status;
@@ -236,6 +248,7 @@ function fmtScore(l, turn) {
 function renderLines() {
   const el = $('#lines'), fen = curFen(), turn = fen.split(' ')[1];
   if (S.mode === 'review') {
+    if (reviewLive()) { setEval(S.lines[0] ? fmtScore(S.lines[0], turn) : null); return; }
     const ev = R.evals[S.ply] || null;
     setEval(ev ? { w: R.ws[S.ply] / 100, txt: fmtWhite(ev, curFen().split(' ')[1]) } : null); return;
   }
@@ -259,7 +272,7 @@ function setEval(sc) {
 // ---------- engine ----------
 let engine = null;
 function analyse() {
-  if (!S.valid || !engine || !(S.mode === 'analysis' || (S.mode === 'pvp' && S.hints))) return;
+  if (!S.valid || !engine || !(S.mode === 'analysis' || (S.mode === 'pvp' && S.hints) || reviewLive())) return;
   const g = game(); if (g.isGameOver()) { S.lines = []; renderLines(); return; }
   const fen = curFen(), btn = $('#btn-suggest');
   const label = $('#suggest-label'), idle = suggestLabel();
@@ -413,7 +426,11 @@ function relayout() {
   const cs = getComputedStyle(layout), card = $('.board-card'), stack = $('#board');
   const H = Math.floor(layout.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom));
   const W = layout.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
-  const extraW = card.offsetWidth - stack.offsetWidth, extraH = card.offsetHeight - stack.offsetHeight;
+  // width around the board, from its parts: the card can be capped at the old size, so measuring it would under-count
+  const ccs = getComputedStyle(card), wrapGap = parseFloat(getComputedStyle($('.board-wrap')).columnGap) || 0;
+  const part = w => (w && w.offsetParent ? w.offsetWidth + wrapGap : 0);
+  const extraW = parseFloat(ccs.paddingLeft) + parseFloat(ccs.paddingRight) + part($('#evalbar')) + part($('.side-players'));
+  const extraH = card.offsetHeight - stack.offsetHeight;
   const minBoard = Math.max(360, Math.round(H * 0.6));
   // compare panel-beside vs panel-below and keep whichever gives the bigger board (beside wins ties: less scrolling)
   const side = Math.min(H - extraH, W - extraW - GAP - PANEL_W);
@@ -437,7 +454,8 @@ function renderTimeline() {
   // a game that starts with Black leaves the first White cell empty, so the review's two-column list stays aligned
   el.innerHTML = (S.base.split(' ')[1] === 'b' ? '<span class="tchip-gap"></span>' : '') + S.moves.map((mv, i) => {
     const cls = clsOf(i), c = CLASSES[cls];
-    return `<button type="button" class="tchip ${c ? 'graded' : ''} ${i + 1 === S.ply ? 'cur' : ''} ${i + 1 > S.ply ? 'future' : ''}" data-ply="${i + 1}"${c ? ` style="--c:${c.color}" title="${c.label}"` : ''}>${esc(moveTitle(mv.san, i, S.base, cls))}</button>`;
+    const own = S.mode === 'review' && R.explore && i >= R.explore.from;
+    return `<button type="button" class="tchip ${own ? 'own' : ''} ${c ? 'graded' : ''} ${i + 1 === S.ply ? 'cur' : ''} ${i + 1 > S.ply ? 'future' : ''}" data-ply="${i + 1}"${c ? ` style="--c:${c.color}" title="${c.label}"` : ''}>${esc(moveTitle(mv.san, i, S.base, cls))}</button>`;
   }).join('');
   const cur = el.querySelector('.cur');
   el.scrollLeft = cur ? cur.offsetLeft - el.clientWidth / 2 + cur.offsetWidth / 2 : el.scrollWidth;
@@ -638,7 +656,7 @@ function tutorPrompt(e) {
   ].filter(Boolean).join('\n');
 }
 const LEVEL_TXT = { beginner: 'a beginner: avoid jargon and explain the basic idea', intermediate: 'a club player', advanced: 'an advanced player: be concise and concrete' };
-const clsOf = i => (S.mode === 'tutor' ? T.entries[i]?.cls : S.mode === 'review' ? R.rows[i]?.cls : null);
+const clsOf = i => (S.mode === 'tutor' ? T.entries[i]?.cls : S.mode === 'review' ? reviewRowAt(i)?.cls : null);
 function plyBadge() {
   const cls = S.ply ? clsOf(S.ply - 1) : null;
   return cls ? { sq: S.moves[S.ply - 1].to, color: CLASSES[cls].color, glyph: CLASSES[cls].glyph } : null;
@@ -778,14 +796,14 @@ function parseGame(raw) {
   }
   return { headers: {}, startFen, moves, partial: moves.length < toks.length };
 }
-function cancelReview() { R.run++; R.status = 'idle'; R.rows = []; R.evals = []; R.ws = []; }
+function cancelReview() { R.run++; R.status = 'idle'; R.rows = []; R.evals = []; R.ws = []; R.explore = null; R.mainMoves = null; }
 async function startReview(game) {
   if (game.moves.length < 2) throw new Error('That game has fewer than 2 moves, nothing to review.');
   const run = ++R.run, cfg = SPEEDS[R.speed], standard = game.startFen === START_FEN, t0 = performance.now();
   Object.assign(S, { base: game.startFen, moves: game.moves, ply: 0, valid: true, edit: false, lines: [], uncertain: new Set() });
   const f = game.startFen.split(' '); Object.assign(S, { placement: f[0], turn: f[1], castle: f[2] === '-' ? '' : f[2] });
   const fens = [game.startFen, ...game.moves.map(m => m.fen)], sans = game.moves.map(m => m.san);
-  Object.assign(R, { status: 'running', phase: 'quick', headers: game.headers || {}, rows: [], evals: [], ws: [], fens, total: game.moves.length, sans, standard, follow: true, got: 0,
+  Object.assign(R, { status: 'running', phase: 'quick', headers: game.headers || {}, rows: [], evals: [], ws: [], fens, total: game.moves.length, sans, standard, follow: true, got: 0, mainMoves: game.moves.slice(), explore: null,
     counts: { w: {}, b: {} }, sum: { w: 0, b: 0 }, n: { w: 0, b: 0 }, acc: { w: 100, b: 100 }, opening: standard ? openingName(sans) : null, info: null });
   refresh();
   const bar = $('#rv-bar'), txt = $('#rv-prog-txt'), stopped = () => R.run !== run;
@@ -854,16 +872,40 @@ function renderReview() {
   document.querySelectorAll('#seg-speed button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === R.speed)));
   if (R.status === 'idle' || !has) return;
   $('#rv-summary').innerHTML = buildSummary(R, S.ply);
-  const i = S.ply - 1, row = R.rows[i];
+  const i = S.ply - 1, row = reviewRowAt(i), live = reviewLive();
   const parts = row ? templateParts(row) : { text: '', tip: '' };
-  $('#card-rmove').innerHTML = buildMoveCard({ row, ply: S.ply, title: S.moves[i] ? moveTitle(S.moves[i].san, i, S.base, row?.cls) : '', evalAfter: row?.evalAfter, text: row?.text, busy: row?.busy, err: row?.err, canExplain: llmReady(), template: parts.text, tip: parts.tip, chips: row ? motifChips(row.motifs) : '', opening: R.opening, pending: R.status === 'running' && S.ply > 0 && !row });
+  const turn = curFen().split(' ')[1], who = turn === 'w' ? 'White' : 'Black', bh = R.status === 'done' && R.showBest ? bestHere() : null;
+  const best = R.status !== 'done' ? '' : `<div class="rm-best"><span>${R.showBest ? (bh ? `★ Best for ${who}: ${bh.pending ? '<span class="dots">thinking…</span>' : `<b>${esc(bh.san)}</b> <em>${esc(bh.score)}</em>`}` : 'No moves: the game is over') : 'Stockfish\'s best move is hidden'}</span>`
+    + `<button class="btn sm" data-best-toggle type="button">${R.showBest ? 'Hide' : 'Show best'}</button></div>`;
+  const custom = live ? { kicker: `Your line · ${who} to move`, title: moveTitle(S.moves[i].san, i, S.base), body: 'You are exploring a move that was not played in this game. Stockfish evaluates every position of your line live; the blue arrow shows its best move. Use <b>Back to game</b> to return to the reviewed moves.' } : null;
+  $('#card-rmove').innerHTML = buildMoveCard({ row, ply: S.ply, title: S.moves[i] ? moveTitle(S.moves[i].san, i, S.base, row?.cls) : '', evalAfter: row?.evalAfter, text: row?.text, busy: row?.busy, err: row?.err, canExplain: llmReady(), template: parts.text, tip: parts.tip, chips: row ? motifChips(row.motifs) : '', opening: R.opening, pending: R.status === 'running' && S.ply > 0 && !row, custom, best, exploring: !!R.explore });
+}
+/** Stockfish's best move for whoever is to move: from the review on the game's own positions, live on the user's line. */
+function bestHere() {
+  const fen = curFen(), turn = fen.split(' ')[1];
+  if (new Chess(fen).isGameOver()) return null;
+  const ev = onMain(S.ply) ? R.evals[S.ply] : null;
+  if (ev?.best) return { uci: ev.best, san: uciToSan(fen, ev.best), score: fmtWhite(ev, turn) };
+  const l = S.lines[0];
+  return l ? { uci: l.pv[0], san: uciToSan(fen, l.pv[0]), score: fmtScore(l, turn).txt } : { pending: true };
+}
+/** Leave the user's line and return to the reviewed game (optionally at `ply`). */
+function resetToGame(ply) {
+  if (!R.mainMoves) return;
+  const at = ply ?? Math.min(S.ply, R.explore ? R.explore.from : S.ply);
+  S.moves = R.mainMoves.slice(); R.explore = null; S.lines = []; stopEngine();
+  S.ply = Math.max(0, Math.min(at, S.moves.length)); refresh();
 }
 function reviewView() {
-  const row = S.ply ? R.rows[S.ply - 1] : null, arrows = [];
+  const row = S.ply ? reviewRowAt(S.ply - 1) : null, arrows = [];
   if (row && !row.isBest && row.best && !['book', 'excellent', 'good'].includes(row.cls)) arrows.push({ from: row.best.slice(0, 2), to: row.best.slice(2, 4), color: '#4fbf8f', width: 12, label: '' });
   // the opponent's punishing reply, so you can see what the mistake allowed
-  const reply = row?.after?.best;
-  if (reply && ['mistake', 'blunder', 'miss'].includes(row.cls)) arrows.push({ from: reply.slice(0, 2), to: reply.slice(2, 4), color: '#e0693f', width: 9, label: '' });
+  const best = R.status === 'done' && R.showBest ? bestHere() : null;
+  if (best?.uci) arrows.push({ from: best.uci.slice(0, 2), to: best.uci.slice(2, 4), color: '#6f86ff', width: 11, label: '' });   // best move for the side to move
+  else if (!R.showBest) {
+    const reply = row?.after?.best;   // the opponent's punishing reply, so you can see what the mistake allowed
+    if (reply && ['mistake', 'blunder', 'miss'].includes(row.cls)) arrows.push({ from: reply.slice(0, 2), to: reply.slice(2, 4), color: '#e0693f', width: 9, label: '' });
+  }
   return arrows;
 }
 async function explainRow(i) {
@@ -875,6 +917,7 @@ async function explainRow(i) {
 function jumpMoment(dir) {
   const bad = ['mistake', 'blunder', 'miss'], idx = R.rows.map((r, i) => (bad.includes(r.cls) ? i + 1 : 0)).filter(Boolean);
   const t = dir > 0 ? idx.find(p => p > S.ply) : [...idx].reverse().find(p => p < S.ply);
+  if (R.explore) resetToGame(S.ply);
   if (t) goto(t); else toast(dir > 0 ? 'No more mistakes ahead' : 'No earlier mistakes');
 }
 function wireReview() {
@@ -895,19 +938,21 @@ function wireReview() {
   $('#seg-speed').addEventListener('click', e => { const b = e.target.closest('button[data-v]'); if (b) { R.speed = b.dataset.v; store.set('speed', R.speed); renderReview(); } });
   $('#rv-summary').addEventListener('click', e => {
     const g = e.target.closest('#rv-graph');
-    if (g) { const r = g.getBoundingClientRect(); goto(Math.round((e.clientX - r.left) / r.width * S.moves.length)); revealCard($('#card-rmove')); return; }
+    if (g) { if (R.explore) resetToGame(); const r = g.getBoundingClientRect(); goto(Math.round((e.clientX - r.left) / r.width * S.moves.length)); revealCard($('#card-rmove')); return; }
     const m = e.target.closest('[data-moment]'); if (m) jumpMoment(+m.dataset.moment);
   });
   $('#card-rmove').addEventListener('click', e => {
     if (e.target.closest('[data-explain]')) explainRow(S.ply - 1);
     const mm = e.target.closest('[data-moment]'); if (mm) jumpMoment(+mm.dataset.moment);
+    if (e.target.closest('[data-best-toggle]')) { R.showBest = !R.showBest; store.set('rvbest', R.showBest); refresh(); }
+    if (e.target.closest('[data-reset-line]')) { resetToGame(); toast('Back to the reviewed game'); }
   });
 }
 
 // ---------- export & share ----------
 const NAG = { brilliant: '$3', great: '$1', inaccuracy: '$6', mistake: '$2', miss: '$4', blunder: '$4' };
 /** Grade + evaluations for move i, from the review or the tutor, when available. */
-const annotOf = i => (S.mode === 'review' ? R.rows[i] : S.mode === 'tutor' ? (T.entries[i]?.cls ? T.entries[i] : null) : null);
+const annotOf = i => (S.mode === 'review' ? reviewRowAt(i) : S.mode === 'tutor' ? (T.entries[i]?.cls ? T.entries[i] : null) : null);
 const hasAnnotations = () => S.moves.some((_, i) => annotOf(i));
 function pgnEval(ev, fen) {
   if (!ev || ev.terminal) return '';

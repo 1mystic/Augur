@@ -76,12 +76,13 @@ export function lessonCard({ kicker, meta, title, cls, chips, body, tip, footer 
 }
 
 /** Review move card: fixed height, scrolling body, and a footer pinned at the bottom so nothing shifts while stepping. */
-export function buildMoveCard({ row, ply, title, evalAfter, text, busy, err, canExplain, template, tip, chips, opening, pending }) {
-  const nav = `<div class="rm-nav"><button class="btn sm" data-moment="-1" type="button">‹ Prev mistake</button><button class="btn sm" data-moment="1" type="button">Next mistake ›</button></div>`;
-  const frame = (lesson, extra = '') => `<div class="card-b rm-body"><div class="rm-scroll">${lesson}</div><div class="rm-foot">${extra}${nav}</div></div>`;
+export function buildMoveCard({ row, ply, title, evalAfter, text, busy, err, canExplain, template, tip, chips, opening, pending, custom, best = '', exploring }) {
+  const nav = `<div class="rm-nav${exploring ? ' three' : ''}"><button class="btn sm" data-moment="-1" type="button">‹ Prev mistake</button>${exploring ? '<button class="btn sm back" data-reset-line type="button">↺ Back to game</button>' : ''}<button class="btn sm" data-moment="1" type="button">Next mistake ›</button></div>`;
+  const frame = (lesson, extra = '') => `<div class="card-b rm-body"><div class="rm-scroll">${lesson}</div><div class="rm-foot">${best}${extra}${nav}</div></div>`;
+  if (custom) return frame(lessonCard(custom));
   if (!row && pending) return frame(lessonCard({ kicker: 'Move analysis', title: title || '', body: '<span class="dots">Still analysing this move…</span>' }));
   if (!row) {
-    return frame(lessonCard({ kicker: 'Move analysis', title: ply === 0 ? 'Starting position' : 'Final position', body: `${opening ? `<b>${esc(opening)}</b>. ` : ''}Step through the game with ← → or click a point on the graph or a move in the list.` }));
+    return frame(lessonCard({ kicker: 'Move analysis', title: ply === 0 ? 'Starting position' : 'Final position', body: `${opening ? `<b>${esc(opening)}</b>. ` : ''}Step through the game with ← → or click a point on the graph or a move in the list. Drag a piece at any step to try your own line.` }));
   }
   const body = text ? esc(text) : busy ? `<span class="dots">The tutor is thinking…</span>` : `${err ? `<div class="err">${esc(err)}</div>` : ''}${esc(template || '')}`;
   const facts = `<div class="lesson-actions"><span class="rm-evals"><span>Eval after <b>${esc(evalAfter)}</b></span><span>Accuracy <b>${row.acc.toFixed(0)}%</b></span></span>${canExplain && !text && !busy ? '<button class="btn sm" data-explain type="button">Explain with AI</button>' : ''}</div>`;
