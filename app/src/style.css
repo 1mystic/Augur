@@ -109,7 +109,7 @@ kbd { font: 600 11px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 1p
 .evalbar .fill { position: absolute; left: 0; right: 0; bottom: 0; height: 50%; background: #f5f6ff; transition: height .35s cubic-bezier(.3, .7, .3, 1); }
 .evalbar span { position: absolute; left: 50%; bottom: 6px; transform: translateX(-50%) rotate(-90deg); font-size: 9px; font-weight: 700; color: #2d3042; white-space: nowrap; }
 .evalbar.flip { transform: rotate(180deg); } .evalbar.flip span { transform: translateX(-50%) rotate(90deg); }
-.evalbar.off { visibility: hidden; }
+.evalbar.off { display: none; }
 
 .player { height: var(--pb); display: flex; align-items: center; gap: 9px; font-size: 13.5px; padding: 0 2px; }
 .player .chip { width: 14px; height: 14px; border-radius: 4px; background: #fff; border: 1.5px solid #8a90ad; flex: none; transition: box-shadow .2s; }
@@ -832,3 +832,32 @@ body.timed .side-players { display: flex; }
 .rm-scroll { flex: 1; min-height: 0; overflow-y: auto; padding-right: 4px; }
 .rm-foot { flex: none; display: grid; gap: 10px; padding-top: 12px; border-top: 1px dashed var(--border-strong); }
 .rm-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+/* panel views: wrapping rows that always stretch to the full width (no empty grid columns) */
+@media (min-width: 981px) {
+  .pane:not([hidden]) { display: flex; flex-direction: row; flex-wrap: wrap; align-content: flex-start; align-items: flex-start; }
+  .pane > .card { flex: 1 1 320px; min-width: 0; }
+  [data-mode="tutor"] #card-coach, [data-mode="review"] #card-review { flex-basis: 100%; }
+  [data-mode="review"] #card-rmove { flex: 3 1 360px; }
+  [data-mode="review"] #card-play { flex: 2 1 280px; }
+}
+
+/* the move timeline is a vertical two-column move list (White | Black) in every mode */
+.timeline { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; max-height: 236px; overflow-x: hidden; overflow-y: auto; padding: 2px 4px 2px 2px; scroll-behavior: smooth; }
+.timeline .tchip { width: 100%; text-align: left; }
+.tchip-gap { display: block; }
+.timeline .empty { grid-column: 1 / -1; }
+
+/* board card: equal padding on every side; the eval bar only takes space when it is shown */
+.board-card { padding: 16px; }
+.board-wrap { align-items: stretch; }
+.evalbar { margin: var(--mat-h) 0; }
+.under { margin-top: 12px; }
+
+/* material strips: captured pieces + material lead, one strip per side of the board */
+:root { --mat-h: 26px; }
+.mat { height: var(--mat-h); display: flex; align-items: center; gap: 8px; overflow: hidden; }
+.mat-pcs { display: flex; align-items: center; padding: 2px 8px 2px 4px; border-radius: 6px; background: var(--surface-2); }
+.mat-pcs img { width: 18px; height: 18px; margin-right: -5px; }
+.mat-pcs img:last-child { margin-right: 0; }
+.mat-up { font: 800 12px/1 var(--mono); color: var(--sage); background: var(--sage-soft); padding: 4px 8px; border-radius: 6px; }

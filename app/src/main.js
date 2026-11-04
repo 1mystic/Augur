@@ -177,7 +177,7 @@ function refresh() {
   $('#fen').value = fen;
   $('#btn-edit').classList.toggle('on', S.edit); $('#palette').classList.toggle('hidden', !S.edit);
   $('#evalbar').classList.toggle('flip', S.orient === 'b');
-  renderMoves(); renderTimeline(); renderLines();
+  renderMoves(); renderTimeline(); renderLines(); renderMaterial(pieces);
   syncBot();
   scheduleLayout();
 }
@@ -190,6 +190,23 @@ function matePop(winner) {
   el.innerHTML = `<div class="mp"><span class="mp-k">#</span><b>Checkmate</b><span class="mp-s">${sub}</span></div>`;
   $('#board').appendChild(el);
   setTimeout(() => el.remove(), 3000);
+}
+// ---------- material strips (above / below the board) ----------
+const MAT_VAL = { p: 1, n: 3, b: 3, r: 5, q: 9 }, MAT_START = { p: 8, n: 2, b: 2, r: 2, q: 1 };
+/** Pieces each side has captured (as icons) and a +N chip for whoever is ahead on material. */
+function renderMaterial(pieces) {
+  const count = { w: { p: 0, n: 0, b: 0, r: 0, q: 0 }, b: { p: 0, n: 0, b: 0, r: 0, q: 0 } };
+  for (const p of Object.values(pieces)) { const c = p === p.toUpperCase() ? 'w' : 'b', t = p.toLowerCase(); if (t in MAT_VAL) count[c][t]++; }
+  const value = c => Object.entries(count[c]).reduce((a, [t, n]) => a + n * MAT_VAL[t], 0);
+  const diff = value('w') - value('b');
+  const strip = side => {   // what `side` has taken from the opponent
+    const opp = side === 'w' ? 'b' : 'w', icons = [];
+    for (const t of ['q', 'r', 'b', 'n', 'p']) for (let i = count[opp][t]; i < MAT_START[t]; i++) icons.push(`<img src="${pieceSrc(opp === 'w' ? t.toUpperCase() : t)}" alt="">`);
+    const lead = side === 'w' ? diff : -diff;
+    return (icons.length ? `<span class="mat-pcs">${icons.join('')}</span>` : '') + (lead > 0 ? `<span class="mat-up">+${lead}</span>` : '');
+  };
+  const top = S.orient === 'w' ? 'b' : 'w';
+  $('#mat-top').innerHTML = strip(top); $('#mat-bot').innerHTML = strip(S.orient);
 }
 function setSeg(sel, v) { document.querySelectorAll(sel + ' button').forEach(b => b.classList.toggle('on', b.dataset.v === v)); }
 
@@ -353,6 +370,8 @@ function renderMode(turn) {
   $('#btn-takeback').disabled = !S.moves.length || S.ply === 0 || timed();
   $('#btn-takeback').title = timed() ? 'Not available in timed games' : '';
   $('#opts-time').classList.toggle('hidden', S.mode !== 'pvp' && S.mode !== 'bot');
+  $('#opts-board').classList.toggle('hidden', !['pvp', 'bot', 'tutor'].includes(S.mode));
+  $('#btn-from-board').disabled = !S.valid || (curFen() === START_FEN && !S.moves.length);
   document.querySelectorAll('#seg-time button').forEach(b => b.setAttribute('aria-checked', String(+b.dataset.v === S.time)));
   renderClocks();
   // engine card: top-3 in analysis, single hint in pvp, hidden when hints are off or vs the bot
@@ -391,7 +410,7 @@ function relayout() {
   const root = document.documentElement.style, layout = $('.layout');
   if (!DESKTOP.matches) { layout.classList.remove('below'); layout.style.height = ''; for (const v of ['--board', '--bw']) root.removeProperty(v); return; }
   layout.style.height = Math.floor(innerHeight - $('.top').offsetHeight) + 'px';   // exactly the space under the header: no page scroll
-  const cs = getComputedStyle(layout), card = $('.board-card'), stack = $('.board-stack');
+  const cs = getComputedStyle(layout), card = $('.board-card'), stack = $('#board');
   const H = Math.floor(layout.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom));
   const W = layout.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
   const extraW = card.offsetWidth - stack.offsetWidth, extraH = card.offsetHeight - stack.offsetHeight;
@@ -482,7 +501,9 @@ const MODE_INFO = {
 const item = (m, text, sub) => `<button type="button" role="menuitem" data-new="${m}" class="ng-item" data-v="${m}"><svg class="ic"><use href="#${MODE_INFO[m].icon}"/></svg><span><b>${text}</b>${sub ? `<small>${sub}</small>` : ''}</span></button>`;
 function renderNewMenu() {
   const others = Object.keys(MODE_INFO).filter(m => m !== S.mode);
+  const canContinue = S.mode !== 'review' && S.valid && curFen() !== START_FEN;
   $('#ng-menu').innerHTML = `<div class="ng-h">Same mode</div>${item(S.mode, MODE_INFO[S.mode].fresh, 'Keeps your current settings')}
+    ${canContinue ? `<button type="button" role="menuitem" data-from-board class="ng-item" data-v="${S.mode}"><svg class="ic"><use href="#i-flip"/></svg><span><b>Continue from this position</b><small>The board as it is now becomes the start</small></span></button>` : ''}
     <div class="ng-h">Or switch to</div>${others.map(m => item(m, MODE_INFO[m].label)).join('')}`;
 }
 function toggleNewMenu(open) {
@@ -492,6 +513,19 @@ function toggleNewMenu(open) {
   if (show) menu.querySelector('.ng-item')?.focus();
 }
 /** Start fresh in `mode` (the current one or another), asking first if a game is in progress. */
+/** Make the position currently on the board the new starting position (history cleared), in the current mode. */
+async function startFromBoard() {
+  if (!S.valid) { toast('Fix the position first'); return; }
+  const fen = curFen();
+  if (fen === START_FEN && !S.moves.length) { toast('The board is already at the starting position'); return; }
+  if (S.ply < S.moves.length && !(await confirmDialog('Start from this position?', 'Moves after this position will be dropped.', 'Start here'))) return;
+  const f = fen.split(' ');
+  botJob = null; botEngine?.stop(); stopEngine();
+  Object.assign(S, { placement: f[0], turn: f[1], castle: f[2] === '-' ? '' : f[2], edit: false, lines: [], uncertain: new Set(), endShown: null });
+  rebuildBase();   // clears history, tutor feed and clocks; the bot replies if it is its turn
+  setTab('main');
+  toast(`${MODE_INFO[S.mode].label}: continuing from the current position`);
+}
 async function startNew(mode) {
   toggleNewMenu(false);
   if (S.moves.length && !(await confirmDialog('Start a new game?', 'The current game will be cleared.', 'New game'))) return;
@@ -501,7 +535,11 @@ async function startNew(mode) {
 }
 function wireNewGame() {
   $('#btn-new').addEventListener('click', e => { e.stopPropagation(); toggleNewMenu(); });
-  $('#ng-menu').addEventListener('click', e => { const b = e.target.closest('[data-new]'); if (b) startNew(b.dataset.new); });
+  $('#ng-menu').addEventListener('click', e => {
+    if (e.target.closest('[data-from-board]')) { toggleNewMenu(false); startFromBoard(); return; }
+    const b = e.target.closest('[data-new]'); if (b) startNew(b.dataset.new);
+  });
+  $('#btn-from-board').addEventListener('click', startFromBoard);
   document.addEventListener('click', e => { if (!e.target.closest('.ng')) toggleNewMenu(false); });
   $('#ng-menu').addEventListener('keydown', e => {
     const items = [...$('#ng-menu').querySelectorAll('.ng-item')], i = items.indexOf(document.activeElement);
