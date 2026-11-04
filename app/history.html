@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Game history | Augur</title>
+  <meta name="description" content="Your Augur games, saved in this browser. Resume a game, review it, import or export your history." />
+  <meta name="theme-color" content="#14151d" />
+  <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+  <link rel="icon" href="./favicon-32.png" type="image/png" sizes="32x32" />
+  <script>try{var t=localStorage.getItem("augur:theme");if(t)document.documentElement.dataset.theme=JSON.parse(t)}catch(e){}</script>
+  <script type="module" src="./src/history.js"></script>
+</head>
+<body class="hist">
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></symbol>
+      <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+      <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+      <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></symbol>
+      <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></symbol>
+      <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4l13 8-13 8V4z"/></symbol>
+      <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V4"/><path d="M4 20h16"/><path d="M7 15l4-4 3 3 5-6"/></symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></symbol>
+      <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5z"/><path d="M14 3v5h5"/></symbol>
+      <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></symbol>
+      <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    </defs>
+  </svg>
+
+  <header class="nav scrolled" id="nav">
+    <a class="brand" href="./" aria-label="Augur home"><img src="./icon.svg" alt="" width="32" height="32" /><b>AUGUR</b></a>
+    <nav class="links" aria-label="Pages"><a href="./">Home</a><a href="./app.html">App</a><a href="./history.html" class="on" aria-current="page">History</a></nav>
+    <div class="nav-r">
+      <button class="icon-btn" id="theme" type="button" aria-label="Switch theme" title="Switch light / dark theme"><svg class="ic"><use href="#i-sun"/></svg></button>
+      <a class="btn solid" href="./app.html">Open app <svg class="ic"><use href="#i-arrow"/></svg></a>
+    </div>
+  </header>
+
+  <main class="hist-main">
+    <section class="hist-head in-up" style="--d:0ms">
+      <div>
+        <span class="kick">Saved on this device</span>
+        <h1>Game history</h1>
+        <p class="lead sm" id="stats">Loading your games…</p>
+      </div>
+      <div class="hist-actions">
+        <label class="btn ghost" for="file"><svg class="ic"><use href="#i-upload"/></svg> Import</label>
+        <input id="file" type="file" accept=".pgn,.json,.txt,text/plain,application/json" multiple hidden />
+        <button class="btn ghost" id="btn-paste" type="button"><svg class="ic"><use href="#i-file"/></svg> Paste PGN</button>
+        <button class="btn ghost" id="btn-json" type="button" title="Full backup you can import again"><svg class="ic"><use href="#i-download"/></svg> Export all</button>
+        <button class="btn ghost" id="btn-pgn" type="button" title="All games as one .pgn file"><svg class="ic"><use href="#i-download"/></svg> PGN</button>
+      </div>
+    </section>
+
+    <section class="toolbar in-up" style="--d:80ms">
+      <label class="search"><svg class="ic"><use href="#i-search"/></svg><input id="q" type="search" placeholder="Search players, openings, dates…" autocomplete="off" aria-label="Search games" /></label>
+      <div class="chips" id="filters" role="group" aria-label="Filter by mode"></div>
+      <select id="sort" aria-label="Sort games">
+        <option value="new">Newest first</option><option value="old">Oldest first</option><option value="long">Longest first</option>
+      </select>
+    </section>
+
+    <section class="grid" id="grid" aria-live="polite"></section>
+
+    <section class="empty hidden" id="empty">
+      <div class="empty-board" aria-hidden="true"></div>
+      <h2>No games yet</h2>
+      <p>Play a game in Augur and it will appear here automatically, or import a PGN or a backup.</p>
+      <a class="btn solid lg" href="./app.html">Play a game <svg class="ic"><use href="#i-arrow"/></svg></a>
+    </section>
+
+    <footer class="hist-foot">
+      <p>History is stored in this browser's IndexedDB. Nothing is uploaded. You can switch saving off in the app's Settings.</p>
+      <button class="btn ghost danger" id="btn-clear" type="button"><svg class="ic"><use href="#i-trash"/></svg> Clear all history</button>
+    </section>
+  </main>
+
+  <dialog id="paste">
+    <div class="dlg-h"><h3>Paste PGN</h3><button class="icon-btn sm" data-close type="button" aria-label="Close"><svg class="ic"><use href="#i-close"/></svg></button></div>
+    <p class="muted">Paste one or more games exported from chess.com, Lichess or any app.</p>
+    <textarea id="paste-text" rows="10" spellcheck="false" placeholder="[Event &quot;Live Chess&quot;]&#10;[White &quot;…&quot;]&#10;&#10;1. e4 e5 2. Nf3 …"></textarea>
+    <div class="dlg-btns"><button class="btn ghost" data-close type="button">Cancel</button><button class="btn solid" id="paste-go" type="button">Import games</button></div>
+  </dialog>
+  <dialog id="confirm">
+    <h3 id="confirm-title">Are you sure?</h3>
+    <p class="muted" id="confirm-msg"></p>
+    <div class="dlg-btns"><button class="btn ghost" id="confirm-no" type="button">Cancel</button><button class="btn solid" id="confirm-yes" type="button">Continue</button></div>
+  </dialog>
+  <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

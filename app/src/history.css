@@ -1,0 +1,61 @@
+/* History page: builds on the shared tokens, nav and buttons in landing.css. */
+.hist-main { max-width: 1180px; margin: 0 auto; padding: 24px clamp(18px, 4vw, 40px) 40px; min-height: 80vh; }
+.nav .links a.on { color: var(--ink); background: var(--surface-2); }
+.hist-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 24px; margin: 20px 0 26px; }
+.hist-head h1 { font-size: clamp(36px, 5vw, 56px); margin: 0 0 8px; letter-spacing: -.04em; }
+.lead.sm { font-size: 17px; margin: 0; color: var(--muted); }
+.hist-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.hist-actions .btn { padding: 10px 14px; cursor: pointer; }
+.btn.danger:hover { color: var(--rose); border-color: var(--rose); }
+.icon-btn.sm { width: 34px; height: 34px; }
+
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 22px; }
+.search { flex: 1 1 260px; display: flex; align-items: center; gap: 10px; padding: 0 14px; height: 44px; border-radius: var(--r-sm); background: var(--surface); box-shadow: 0 0 0 1px var(--border); color: var(--muted); transition: box-shadow .2s; }
+.search:focus-within { box-shadow: 0 0 0 2px var(--blue); }
+.search input { flex: 1; min-width: 0; border: 0; background: transparent; outline: 0; color: var(--ink); font: 500 15px var(--sans); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips button { border: 0; cursor: pointer; padding: 9px 13px; border-radius: 999px; font: 700 11.5px/1 var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); background: var(--surface); box-shadow: 0 0 0 1px var(--border); transition: color .2s, background .2s, box-shadow .2s; }
+.chips button:hover { color: var(--ink); }
+.chips button[aria-pressed="true"] { color: var(--c, var(--blue)); background: color-mix(in srgb, var(--c, var(--blue)) 13%, transparent); box-shadow: 0 0 0 1px var(--c, var(--blue)); }
+#sort { height: 44px; padding: 0 14px; border-radius: var(--r-sm); border: 0; background: var(--surface); color: var(--ink); box-shadow: 0 0 0 1px var(--border); font: 600 14px var(--sans); cursor: pointer; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); gap: 16px; }
+.gcard { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 18px; padding: 16px; border-radius: var(--r); background: var(--surface); box-shadow: 0 0 0 1px var(--border); transition: transform .3s var(--ease), box-shadow .3s; }
+.gcard:hover { transform: translateY(-4px); box-shadow: 0 0 0 1px var(--c), 0 22px 36px -24px rgba(10, 12, 30, .45); }
+.thumb { position: relative; width: 132px; aspect-ratio: 1; border-radius: 10px; overflow: hidden; align-self: start; background-color: var(--sq-d);
+  background-image: conic-gradient(var(--sq-l) 25%, var(--sq-d) 0 50%, var(--sq-l) 0 75%, var(--sq-d) 0); background-size: 25% 25%; }
+.thumb img { position: absolute; width: 12.5%; height: 12.5%; left: 0; top: 0; }
+.ginfo { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.gtitle { margin: 0; font: 750 19px/1.2 var(--sans); letter-spacing: -.02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gmeta { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag { font: 800 10.5px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; padding: 6px 9px; border-radius: 6px; color: var(--c, var(--muted)); background: color-mix(in srgb, var(--c, var(--muted)) 13%, transparent); }
+.tag.plain { color: var(--muted); background: var(--surface-2); }
+.gsub { color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+.gsub b { color: var(--ink-soft); font-weight: 600; }
+.gact { margin-top: auto; display: flex; flex-wrap: wrap; gap: 6px; }
+.gact .btn { padding: 8px 11px; font-size: 11px; gap: 7px; cursor: pointer; }
+.gact .ic { width: 14px; height: 14px; }
+.gact .btn.solid { padding-inline: 13px; }
+.gact .del.confirm { color: var(--bg); background: var(--rose); border-color: var(--rose); }
+
+.empty { text-align: center; display: grid; justify-items: center; gap: 14px; padding: 56px 20px; }
+.empty-board { width: 120px; aspect-ratio: 1; border-radius: 14px; background-color: var(--sq-d); background-image: conic-gradient(var(--sq-l) 25%, var(--sq-d) 0 50%, var(--sq-l) 0 75%, var(--sq-d) 0); background-size: 25% 25%; opacity: .55; animation: bob 4s ease-in-out infinite; }
+.empty h2 { font-size: 32px; } .empty p { color: var(--muted); max-width: 44ch; margin: 0 0 8px; }
+.hidden { display: none !important; }
+.hist-foot { margin-top: 48px; padding-top: 22px; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; color: var(--muted); font-size: 14px; }
+.hist-foot p { margin: 0; max-width: 62ch; }
+
+dialog { border: 0; border-radius: var(--r); background: var(--surface); color: var(--ink); width: min(560px, calc(100vw - 32px)); padding: 22px; box-shadow: 0 24px 60px -12px rgba(10, 12, 30, .55), 0 0 0 1px var(--line); }
+dialog::backdrop { background: rgba(10, 12, 26, .5); backdrop-filter: blur(3px); }
+dialog h3 { font-size: 20px; }
+.dlg-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+dialog textarea { width: 100%; margin-top: 10px; padding: 12px; border-radius: var(--r-sm); border: 0; background: var(--inset); color: var(--ink); font: 12.5px/1.5 var(--mono); resize: vertical; box-shadow: 0 0 0 1px var(--border); }
+dialog textarea:focus { outline: 0; box-shadow: 0 0 0 2px var(--blue); }
+.dlg-btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.muted { color: var(--muted); }
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 90; background: var(--surface-2); color: var(--ink); padding: 12px 18px; border-radius: var(--r-sm); box-shadow: 0 12px 30px -10px rgba(10, 12, 30, .5), 0 0 0 1px var(--line); font: 600 13px/1.4 var(--mono); max-width: calc(100vw - 32px); text-align: center; animation: up .3s var(--ease); }
+body.drop::after { content: "Drop PGN or backup files to import"; position: fixed; inset: 12px; z-index: 80; display: grid; place-items: center; border-radius: 20px; border: 2px dashed var(--blue); background: color-mix(in srgb, var(--bg) 86%, transparent); backdrop-filter: blur(4px); font: 800 22px var(--sans); color: var(--blue); }
+
+@media (max-width: 560px) { .gcard { grid-template-columns: 96px minmax(0, 1fr); gap: 14px; } .thumb { width: 96px; } .links { display: none; } .nav .btn.solid { padding: 10px 12px; } }
+
+.gact .del.confirm::after { content: 'Delete?'; font: inherit; }
