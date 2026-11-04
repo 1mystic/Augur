@@ -5,6 +5,8 @@ import { Board, pieceSrc } from './board.js';
 import { Engine } from './engine.js';
 import { pickMove } from './minibot.js';
 import { detectMotifs } from './motifs.js';
+import { saveGame, getGame, newId } from './store.js';
+import { compact, hydrate, resultOf, openingOf } from './games.js';
 import { detectBoard, fallbackBox } from './vision/detect.js';
 import { loadModel, classifyBoard, guessFlipped, gridToPlacement } from './vision/classify.js';
 import { summarise, terminalEval, judge, fmtWhite, whiteWin, openingName, inBook, CLASSES } from './coach.js';
@@ -19,7 +21,7 @@ const RAW = ['#6f86ff', '#4fbf8f', '#f08a6c'];
 const store = { get(k, d) { try { const v = localStorage.getItem('augur:' + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
   set(k, v) { try { localStorage.setItem('augur:' + k, JSON.stringify(v)); } catch { /* private mode */ } } };
 
-const PREF_DEFAULTS = { lines: 3, coords: true, dots: true, evalbar: true, anim: true, autoq: false, who: 'all', level: 'intermediate' };
+const PREF_DEFAULTS = { history: true, lines: 3, coords: true, dots: true, evalbar: true, anim: true, autoq: false, who: 'all', level: 'intermediate' };
 const P = { ...PREF_DEFAULTS, ...store.get('prefs', {}) };
 const S = {
   img: null, box: null, grid: null,
@@ -103,7 +105,7 @@ function rebuildBase({ keepHistory = false } = {}) {
   const err = checkPosition(S.base);
   S.valid = !err;
   $('#warn').textContent = err || ''; $('#warn').classList.toggle('hidden', !err);
-  if (!keepHistory) { S.moves = []; S.ply = 0; T.entries = []; T.gen++; clockReset(); }
+  if (!keepHistory) { S.moves = []; S.ply = 0; T.entries = []; T.gen++; clockReset(); S.gameId = null; S.gameCreated = null; S.recMode = null; }
   S.lines = [];
   refresh();
   if (S.valid && autoOn() && !S.edit) analyse();
@@ -192,6 +194,7 @@ function refresh() {
   renderMoves(); renderTimeline(); renderLines(); renderMaterial(pieces);
   syncBot();
   scheduleLayout();
+  scheduleSave();
 }
 /** Animated checkmate badge over the board: pops in, holds, fades out after 3 seconds. */
 function matePop(winner) {
@@ -508,6 +511,63 @@ async function resetAll() {
   if ((S.moves.length || S.img || S.mode !== 'analysis') && !(await confirmDialog('Reset everything?', 'This clears the board, move history, scanned image and all settings back to their defaults.', 'Reset'))) return;
   resetState({ settings: true }); toast('Reset to defaults');
 }
+// ---------- game history (IndexedDB, this browser only) ----------
+let saveTimer = null, lastSig = '';
+function scheduleSave() { if (!P.history) return; clearTimeout(saveTimer); saveTimer = setTimeout(persistGame, 700); }
+/** Autosave the current game. Reviews save the reviewed game (not your side line) once the analysis is done. */
+async function persistGame() {
+  if (!P.history || S.edit || !S.valid) return;
+  const review = S.mode === 'review';
+  if (review && R.status !== 'done') return;
+  const moves = review && R.mainMoves ? R.mainMoves : S.moves;
+  if (moves.length < 2) return;
+  const last = moves[moves.length - 1].fen, flag = review ? null : C.flag;
+  const sig = [S.gameId, S.mode, moves.length, last, flag, S.bot.level, S.bot.human, review ? Math.round(R.acc.w) : ''].join('|');
+  if (sig === lastSig) return;
+  S.gameId ??= newId(); S.gameCreated ??= Date.now(); S.recMode ??= S.mode;
+  const names = { w: 'White', b: 'Black' };
+  if (S.recMode === 'bot' || S.recMode === 'tutor') { names[S.bot.human] = 'You'; names[S.bot.human === 'w' ? 'b' : 'w'] = `Stockfish (${LEVELS[S.bot.level].label})`; }
+  const hd = review ? R.headers || {} : {};
+  const result = review && hd.Result && hd.Result !== '*' ? hd.Result : resultOf(last, flag);
+  const rec = { id: S.gameId, created: S.gameCreated, updated: Date.now(), mode: S.recMode, source: 'played', startFen: S.base, finalFen: last, moves: compact(moves), ply: review ? moves.length : S.ply,
+    result, white: hd.White && hd.White !== '?' ? hd.White : names.w, black: hd.Black && hd.Black !== '?' ? hd.Black : names.b, opening: hd.Opening || openingOf(S.base, moves) || null, event: hd.Event || null,
+    headers: Object.fromEntries(['Event', 'Site', 'Date', 'Round', 'WhiteElo', 'BlackElo', 'ECO', 'Opening', 'TimeControl'].filter(k => hd[k] && hd[k] !== '?').map(k => [k, hd[k]])),
+    settings: S.recMode === 'bot' || S.recMode === 'tutor' ? { level: S.bot.level, human: S.bot.human } : null,
+    review: review && R.rows.length ? { w: R.acc.w, b: R.acc.b } : null };
+  try {
+    const old = await getGame(rec.id);
+    if (old?.review && !rec.review) rec.review = old.review;   // keep an earlier review's accuracy
+    // reviewing a saved game must not rewrite who played it, when, or in which mode
+    if (old && review) Object.assign(rec, { mode: old.mode, source: old.source, created: old.created, white: old.white, black: old.black, event: old.event, opening: old.opening || rec.opening, headers: old.headers || rec.headers, settings: old.settings });
+    await saveGame(rec); lastSig = sig;
+  } catch { /* storage unavailable or full: history is best effort */ }
+}
+/** Open a saved game from the history page (?game=ID, optionally &review=1). */
+async function loadFromHistory(id, review) {
+  let rec = null; try { rec = await getGame(id); } catch { /* ignore */ }
+  history.replaceState(null, '', location.pathname);
+  if (!rec) { toast('That game is no longer in your history'); return; }
+  const moves = hydrate(rec.startFen, rec.moves);
+  if (!moves.length) { toast('That game could not be opened'); return; }
+  const f = rec.startFen.split(' ');
+  if (rec.settings?.level && LEVELS[rec.settings.level]) { S.bot.level = rec.settings.level; S.bot.human = rec.settings.human === 'b' ? 'b' : 'w'; }
+  S.time = 0;
+  const mode = review ? 'review' : ['pvp', 'bot', 'tutor'].includes(rec.mode) ? rec.mode : 'analysis';
+  if (mode !== S.mode) setMode(mode);
+  if (mode === 'bot' || mode === 'tutor') S.orient = S.bot.human;
+  if (review) {
+    S.gameId = rec.id; S.gameCreated = rec.created; S.recMode = rec.mode; lastSig = '';
+    try { await startReview({ headers: { ...(rec.headers || {}), White: rec.white, Black: rec.black, Result: rec.result, ...(rec.opening ? { Opening: rec.opening } : {}) }, startFen: rec.startFen, moves, partial: false }); } catch (e) { toast(e.message); }
+    return;
+  }
+  Object.assign(S, { placement: f[0], turn: f[1], castle: f[2] === '-' ? '' : f[2], uncertain: new Set(), edit: false });
+  rebuildBase();   // clears the board's own history, clocks and tutor feed
+  S.base = rec.startFen; S.moves = moves; S.ply = Math.min(rec.ply || moves.length, moves.length);
+  S.gameId = rec.id; S.gameCreated = rec.created; S.recMode = rec.mode; lastSig = '';
+  setTab('main'); refresh();
+  toast(`Resumed: ${moves.length} move${moves.length === 1 ? '' : 's'} loaded`);
+}
+
 // ---------- new game menu (panel sub-navbar) ----------
 const MODE_INFO = {
   analysis: { label: 'Analyse', icon: 'i-search', fresh: 'New analysis board' },
@@ -1135,7 +1195,7 @@ function setPref(k, v) {
 function syncPrefsUI() {
   const seg = (sel, v) => document.querySelectorAll(sel + ' button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === String(v))));
   seg('#set-theme', store.get('theme', 'system')); seg('#set-lines', P.lines); seg('#set-who', P.who); seg('#set-level', P.level); seg('#set-think', $('#think').value);
-  for (const [id, k] of [['coords', 'coords'], ['dots', 'dots'], ['evalbar', 'evalbar'], ['anim', 'anim'], ['autoq', 'autoq']]) $('#set-' + id).checked = P[k];
+  for (const [id, k] of [['coords', 'coords'], ['dots', 'dots'], ['evalbar', 'evalbar'], ['anim', 'anim'], ['autoq', 'autoq'], ['history', 'history']]) $('#set-' + id).checked = P[k];
   $('#set-auto').checked = $('#auto').checked;
 }
 function wirePrefs() {
@@ -1145,7 +1205,7 @@ function wirePrefs() {
   on('#set-who', v => setPref('who', v));
   on('#set-level', v => setPref('level', v));
   on('#set-think', v => { $('#think').value = v; store.set('think', v); });
-  for (const k of ['coords', 'dots', 'evalbar', 'anim', 'autoq']) $('#set-' + k).addEventListener('change', e => setPref(k, e.target.checked));
+  for (const k of ['coords', 'dots', 'evalbar', 'anim', 'autoq', 'history']) $('#set-' + k).addEventListener('change', e => setPref(k, e.target.checked));
   $('#set-auto').addEventListener('change', e => { $('#auto').checked = e.target.checked; $('#auto').dispatchEvent(new Event('change')); });
   $('#btn-prefs-reset').addEventListener('click', () => {
     Object.assign(P, PREF_DEFAULTS); try { localStorage.removeItem('augur:prefs'); } catch { /* ignore */ }
@@ -1343,7 +1403,6 @@ function init() {
   $('#lines').addEventListener('click', e => { const li = e.target.closest('li[data-i]'); if (li) playLine(+li.dataset.i); });
   $('#auto').addEventListener('change', e => { store.set('auto', e.target.checked); if (e.target.checked) analyse(); });
   $('#think').addEventListener('change', e => store.set('think', e.target.value));
-  $('#btn-help').addEventListener('click', () => $('#help').showModal());
   wireReview(); wireSettings(); wirePrefs(); applyPrefs(); wireExport();
   addEventListener('resize', scheduleLayout); DESKTOP.addEventListener('change', scheduleLayout);
   document.fonts?.ready.then(scheduleLayout);
@@ -1523,4 +1582,5 @@ function loadFen(fen) {
 init();
 loadFromHash();
 window.addEventListener('hashchange', loadFromHash);
+{ const q = new URLSearchParams(location.search); if (q.has('game')) loadFromHistory(q.get('game'), q.get('review') === '1'); }
 window.__augur = { S, scan, curFen };

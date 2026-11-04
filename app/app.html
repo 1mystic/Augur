@@ -36,6 +36,7 @@
       <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></symbol>
       <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></symbol>
       <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></symbol>
+      <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
       <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
       <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></symbol>
       <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
@@ -63,9 +64,9 @@
         <div class="ng-menu hidden" id="ng-menu" role="menu" aria-label="New game"></div>
       </div>
       <button class="btn" id="btn-reset-all" type="button" title="Reset everything to defaults"><svg class="ic"><use href="#i-reset"/></svg><span>Reset</span></button>
+      <a class="btn icon" id="btn-history" href="./history.html" title="Game history: resume, review, import, export" aria-label="Game history"><svg class="ic"><use href="#i-clock"/></svg></a>
       <button class="btn icon" id="btn-theme" type="button" title="Switch light / dark theme" aria-label="Switch theme"><svg class="ic"><use href="#i-moon"/></svg></button>
       <button class="btn icon" id="btn-settings" type="button" title="Settings (AI tutor key)" aria-label="Settings"><svg class="ic"><use href="#i-gear"/></svg></button>
-      <button class="btn icon" id="btn-help" type="button" title="Shortcuts" aria-label="Shortcuts"><svg class="ic"><use href="#i-help"/></svg></button>
     </div>
   </header>
 
@@ -257,21 +258,6 @@
 
   <footer class="foot">Augur runs entirely in your browser · Stockfish 19 (GPLv3) · pieces by cburnett (CC BY-SA 3.0)</footer>
 
-  <dialog id="help">
-    <div class="dlg-h"><h3>Keyboard shortcuts</h3><button class="btn icon sm" data-close type="button" aria-label="Close"><svg class="ic"><use href="#i-close"/></svg></button></div>
-    <ul class="keys">
-      <li><span><kbd>Ctrl/⌘</kbd> <kbd>V</kbd></span>Paste a screenshot</li>
-      <li><span><kbd>Space</kbd></span>Suggest / hint</li>
-      <li><span><kbd>←</kbd> <kbd>→</kbd></span>Step through moves</li>
-      <li><span><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></span>Play a suggested line</li>
-      <li><span><kbd>F</kbd></span>Flip board</li>
-      <li><span><kbd>E</kbd></span>Edit position</li>
-      <li><span><kbd>T</kbd></span>Switch side to move</li>
-    </ul>
-    <p class="muted small">Edit mode: pick a piece below the board and click squares. Right-click clears a square. Drag to move pieces anywhere.</p>
-    <p class="muted small">Pieces: cburnett (CC BY-SA 3.0). Engine: Stockfish 19 lite (GPLv3) via stockfish.js. Vision model trained on open lichess piece sets.</p>
-    <form method="dialog" class="dlg-btns"><button class="primary auto">Got it</button></form>
-  </dialog>
   <dialog id="settings">
     <div class="dlg-h"><h3>Settings</h3><button class="btn icon sm" data-close type="button" aria-label="Close"><svg class="ic"><use href="#i-close"/></svg></button></div>
     <div class="dlg-body">
@@ -285,6 +271,8 @@
           <label class="switch"><input type="checkbox" id="set-auto" aria-label="Auto-analyse" /><span></span></label></div>
         <div class="row"><div class="lbl-col"><span class="lbl">Think time</span><span class="muted small">Per suggestion</span></div>
           <div class="seg" id="set-think" role="radiogroup" aria-label="Think time"><button type="button" role="radio" data-v="500">0.5s</button><button type="button" role="radio" data-v="1500">1.5s</button><button type="button" role="radio" data-v="3000">3s</button><button type="button" role="radio" data-v="6000">6s</button></div></div>
+        <div class="row"><div class="lbl-col"><span class="lbl">Save games to history</span><span class="muted small">Stored only in this browser · <a href="./history.html">open history</a></span></div>
+          <label class="switch"><input type="checkbox" id="set-history" aria-label="Save games to history" /><span></span></label></div>
       </section>
       <section class="set-sec">
         <h4>Board</h4>
@@ -293,6 +281,19 @@
         <div class="row"><div class="lbl-col"><span class="lbl">Evaluation bar</span></div><label class="switch"><input type="checkbox" id="set-evalbar" aria-label="Show evaluation bar" /><span></span></label></div>
         <div class="row"><div class="lbl-col"><span class="lbl">Piece animation</span></div><label class="switch"><input type="checkbox" id="set-anim" aria-label="Animate pieces" /><span></span></label></div>
         <div class="row"><div class="lbl-col"><span class="lbl">Always promote to queen</span><span class="muted small">Skip the promotion picker</span></div><label class="switch"><input type="checkbox" id="set-autoq" aria-label="Auto queen" /><span></span></label></div>
+      </section>
+      <section class="set-sec">
+        <h4>Keyboard shortcuts</h4>
+        <ul class="keys">
+          <li><span><kbd>Ctrl/⌘</kbd> <kbd>V</kbd></span>Paste a screenshot</li>
+          <li><span><kbd>Space</kbd></span>Suggest / hint</li>
+          <li><span><kbd>←</kbd> <kbd>→</kbd></span>Step through moves</li>
+          <li><span><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></span>Play a suggested line</li>
+          <li><span><kbd>F</kbd></span>Flip board</li>
+          <li><span><kbd>E</kbd></span>Edit position</li>
+          <li><span><kbd>T</kbd></span>Switch side to move</li>
+        </ul>
+        <p class="muted small">Edit mode: pick a piece below the board and click squares. Right-click clears a square. Drag to move pieces anywhere.</p>
       </section>
       <section class="set-sec">
         <h4>AI tutor</h4>
@@ -310,6 +311,7 @@
         <div class="dlg-btns spread"><button class="btn" id="btn-llm-clear" type="button">Remove key</button><span class="grow"></span><button class="btn" id="btn-llm-test" type="button">Test</button><button class="primary auto" id="btn-llm-save" type="button">Save</button></div>
       </section>
     </div>
+    <p class="muted small credits">Pieces: cburnett (CC BY-SA 3.0). Engine: Stockfish 19 lite (GPLv3) via stockfish.js. Vision model trained on open lichess piece sets. <a href="./history.html">Game history</a></p>
     <div class="dlg-foot"><button class="btn" id="btn-prefs-reset" type="button">Restore defaults</button><span class="grow"></span><button class="primary auto" data-close type="button">Done</button></div>
   </dialog>
   <dialog id="export">

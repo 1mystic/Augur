@@ -877,3 +877,11 @@ body.timed .side-players { display: flex; }
 *:hover::-webkit-scrollbar-thumb { background: var(--border-strong); background-clip: content-box; border: 2px solid transparent; border-radius: 6px; }
 *::-webkit-scrollbar-track, *::-webkit-scrollbar-corner { background: transparent; }
 .timeline { align-content: start; grid-auto-rows: max-content; }
+
+/* settings: shortcuts + credits live here now */
+#settings .keys { margin: 0; }
+#settings .credits { margin: 0; padding: 10px 22px 14px; }
+#settings .credits a { color: var(--blue); }
+
+/* the logo is a link now: no underline, inherit colour */
+a.brand, a.brand:hover, a.btn, a.btn:hover { text-decoration: none; color: inherit; }

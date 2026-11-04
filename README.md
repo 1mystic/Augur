@@ -43,11 +43,21 @@ screenshot ──► board detector ──► 64 tiles ──► tiny CNN (≈40
 
 ## Landing page
 
-The site home (`/`) is a standalone landing page in the same slate and pastel style: an animated hero game with live move grades, count-up stats, a how-it-works flow, the five game modes, a review preview, a feature bento, download cards for web / macOS / Linux, an FAQ and a final call to action. The app itself lives at `/app` (`app.html`). It is plain HTML, CSS and about 4 KB of JavaScript, shares the app's theme choice, and respects reduced-motion settings. The desktop app opens straight into the app, and old share links that pointed at the site root are forwarded to it.
+The site home (`/`) is a standalone landing page in the same slate and pastel style: an animated opening on the hero board, count-up stats, a how-it-works flow, the five game modes, a review preview, a feature bento, download cards for web / macOS / Linux, an FAQ and a final call to action. The app itself lives at `/app` (`app.html`). It is plain HTML, CSS and about 4 KB of JavaScript, shares the app's theme choice, and respects reduced-motion settings. The desktop app opens straight into the app, and old share links that pointed at the site root are forwarded to it.
+
+## Game history
+
+Every game you play (PvP, bot, tutor, analysis) and every game you review is saved automatically to **IndexedDB in your browser**, so nothing is uploaded and it works offline. Open it from the clock icon in the app header or at `/history`:
+
+- **Cards** with a board thumbnail, mode, result, opening, move count and, for reviewed games, both sides' accuracy. Search by player or opening, filter by mode, sort by date or length.
+- **Resume** continues a saved game in its original mode (bot level and colour included); **Review** loads it straight into the game review and starts the analysis. Imported games open in Analyse.
+- **Import** PGN files (many games at once), pasted PGN, or a JSON backup, by button or drag and drop. Moves are replayed and validated, and duplicates are skipped.
+- **Export** everything as a JSON backup you can import again, or as one `.pgn` file, or download a single game as PGN.
+- Saving can be switched off in the app's Settings, and "Clear all history" wipes it.
 
 ## Layout
 
-- **Top navbar:** the five modes (Analyse, PvP, Bot, Tutor, Review) sit in the header next to **New game**, **Reset**, theme, settings and help. *New game* opens a small menu: start fresh in the current mode, or switch to another one.
+- **Top navbar:** the five modes (Analyse, PvP, Bot, Tutor, Review) sit in the header next to **New game**, **Reset**, a **History** icon, the theme toggle and settings. Keyboard shortcuts and credits live in Settings. *New game* opens a small menu: start fresh in the current mode, or switch to another one.
 - **Adaptive board:** the board always gets as much room as the screen allows. On wide screens it runs full height with the panel beside it; on tall or portrait screens the panel moves into the space below it. The page itself never scrolls on desktop. Player labels and clocks appear beside the board only in timed games.
 - **Tabbed panel:** a small tab bar (Engine / Game / Lesson / Review, Moves, Position) shows one view at a time; its cards fill the full width in a responsive grid, and settings always sit last.
 - **Lesson first:** in Tutor and Review the focused move card leads the panel (move, grade, tactical motifs, explanation, and a tip with the better move and the habit to build), followed by the colour-coded move timeline. "Next mistake" and graph clicks bring it into view.

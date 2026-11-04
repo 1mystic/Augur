@@ -90,12 +90,8 @@ function mark(sq) {
   lastEl.style.transform = pos(sq); lastEl.style.opacity = 1;
   ringEl.style.transform = pos(sq); ringEl.classList.remove('on'); void ringEl.offsetWidth; ringEl.classList.add('on');
 }
-function show(step) {
-  $('#hb-move').textContent = step.san; $('#hb-eval').textContent = step.ev; $('#hb-opening').textContent = step.o;
-  const g = $('#hb-grade'); g.textContent = step.g; g.style.setProperty('--c', step.c);
-}
 function play(i) {
-  const s = GAME[i]; move(...s.m); if (s.extra) move(...s.extra); mark(s.m[1]); show(s);
+  const s = GAME[i]; move(...s.m); if (s.extra) move(...s.extra); mark(s.m[1]);
 }
 setup();
 if (reduce) { GAME.forEach((_, i) => play(i)); }
@@ -103,7 +99,7 @@ else {
   let i = 0, timer;
   const stepper = () => {
     if (document.hidden) { timer = setTimeout(stepper, 800); return; }
-    if (i >= GAME.length) { timer = setTimeout(() => { setup(); show({ san: '1. e4', g: 'Book', c: 'var(--amber)', ev: '+0.3', o: 'Italian Game' }); i = 0; stepper(); }, 1800); return; }
+    if (i >= GAME.length) { timer = setTimeout(() => { setup(); i = 0; stepper(); }, 1800); return; }
     play(i++); timer = setTimeout(stepper, 1300);
   };
   setTimeout(stepper, 1400);
