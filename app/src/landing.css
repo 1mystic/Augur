@@ -31,6 +31,16 @@
 }
 
 * { box-sizing: border-box; }
+
+/* scrollbars: same as the app. Thin and invisible until you hover the area that scrolls, then only the thumb shows */
+* { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+*:hover { scrollbar-color: var(--line) transparent; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track, *::-webkit-scrollbar-corner { background: transparent; }
+*::-webkit-scrollbar-thumb { background: transparent; border: 2px solid transparent; background-clip: content-box; border-radius: 6px; }
+*:hover::-webkit-scrollbar-thumb { background: var(--line); background-clip: content-box; }
+*::-webkit-scrollbar-thumb:hover { background: var(--muted); background-clip: content-box; }
+html { scrollbar-gutter: stable; }
 html { scroll-behavior: smooth; scroll-padding-top: 84px; }
 body { margin: 0; background: var(--bg); color: var(--ink); font: 450 17px/1.6 var(--sans); -webkit-font-smoothing: antialiased; overflow-x: hidden;
   background-image: radial-gradient(var(--border) 1px, transparent 1px); background-size: 28px 28px; }
