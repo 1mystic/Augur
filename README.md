@@ -41,6 +41,10 @@ screenshot ──► board detector ──► 64 tiles ──► tiny CNN (≈40
   </tr>
 </table>
 
+## Landing page
+
+The site home (`/`) is a standalone landing page in the same slate and pastel style: an animated hero game with live move grades, count-up stats, a how-it-works flow, the five game modes, a review preview, a feature bento, download cards for web / macOS / Linux, an FAQ and a final call to action. The app itself lives at `/app` (`app.html`). It is plain HTML, CSS and about 4 KB of JavaScript, shares the app's theme choice, and respects reduced-motion settings. The desktop app opens straight into the app, and old share links that pointed at the site root are forwarded to it.
+
 ## Layout
 
 - **Top navbar:** the five modes (Analyse, PvP, Bot, Tutor, Review) sit in the header next to **New game**, **Reset**, theme, settings and help. *New game* opens a small menu: start fresh in the current mode, or switch to another one.

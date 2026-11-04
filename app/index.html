@@ -3,359 +3,182 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Augur | Chess Scanner, Bot, Tutor and Game Review</title>
-  <meta name="description" content="Paste a chessboard screenshot, continue the game move by move, ask Stockfish for the top 3 moves, or play against a bot. Runs fully offline in your browser." />
-  <meta name="theme-color" content="#f6f7fb" media="(prefers-color-scheme: light)" />
-  <meta name="theme-color" content="#14161f" media="(prefers-color-scheme: dark)" />
-  <link rel="manifest" href="./manifest.webmanifest" />
+  <title>Augur | Chess screenshot reader, bot, tutor and game review</title>
+  <meta name="description" content="Paste a chessboard screenshot and Augur reads the position, finds the best moves, plays the bot, coaches every move and reviews your games. Free, offline, in your browser or on your desktop." />
+  <meta name="theme-color" content="#14151d" />
   <link rel="icon" href="./icon.svg" type="image/svg+xml" />
   <link rel="icon" href="./favicon-32.png" type="image/png" sizes="32x32" />
-  <link rel="shortcut icon" href="./favicon.ico" />
-  <link rel="apple-touch-icon" href="./icon-192.png" />
   <script>try{var t=localStorage.getItem("augur:theme");if(t)document.documentElement.dataset.theme=JSON.parse(t)}catch(e){}</script>
-  <link rel="stylesheet" href="./src/style.css" />
+  <script type="module" src="./src/landing.js"></script>
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
     <defs>
-      <symbol id="i-reset" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></symbol>
-      <symbol id="i-flip" viewBox="0 0 24 24"><path d="M7 4v16M7 20l-3-3M7 20l3-3"/><path d="M17 20V4M17 4l-3 3M17 4l3 3"/></symbol>
-      <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></symbol>
-      <symbol id="i-left" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
-      <symbol id="i-right" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></symbol>
-      <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.6 2.2c-.7.4-1.1.9-1.1 1.8"/><path d="M12 17h.01"/></symbol>
-      <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/></symbol>
-      <symbol id="i-paste" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4h6v3H9z"/></symbol>
-      <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M21 16l-5-5-8 9"/></symbol>
       <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></symbol>
       <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c.4-3.4 2.9-5.2 6-5.2s5.6 1.8 6 5.2"/><path d="M16 5a3 3 0 0 1 0 6M18 14.8c1.9.6 3.2 2.2 3.5 5.2"/></symbol>
       <symbol id="i-bot" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V4M9.5 4h5"/><path d="M9 13.5h.01M15 13.5h.01M9.5 17h5"/></symbol>
-      <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></symbol>
-      <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
-      <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></symbol>
-      <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></symbol>
-      <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></symbol>
-      <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></symbol>
-      <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
-      <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></symbol>
-      <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
-      <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
       <symbol id="i-teacher" viewBox="0 0 24 24"><path d="M3 9l9-4.5L21 9l-9 4.5L3 9z"/><path d="M7 11.5V16c0 1.4 2.2 2.5 5 2.5s5-1.1 5-2.5v-4.5"/><path d="M21 9v5"/></symbol>
       <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V4"/><path d="M4 20h16"/><path d="M7 15l4-4 3 3 5-6"/></symbol>
-      <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5z"/><path d="M14 3v5h5"/></symbol>
-      <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+      <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M21 16l-5-5-8 9"/></symbol>
+      <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></symbol>
+      <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
+      <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 3L5 14h6l-1 7 8-11h-6l1-7z"/></symbol>
+      <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+      <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></symbol>
+      <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></symbol>
+      <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></symbol>
+      <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+      <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+      <symbol id="i-github" viewBox="0 0 24 24"><path d="M9 19c-4 1.3-4-2-6-2.5M15 21v-3.2c0-.9.1-1.4-.5-2 2.7-.3 5.5-1.3 5.5-6a4.6 4.6 0 0 0-1.3-3.2 4.3 4.3 0 0 0-.1-3.2s-1-.3-3.4 1.3a11.600 11.600 0 0 0-6 0C7.800 2.800 6.800 3.100 6.800 3.100a4.300 4.300 0 0 0-.1 3.200A4.600 4.600 0 0 0 5.400 9.500c0 4.600 2.800 5.700 5.500 6-.6.6-.6 1.200-.5 2V21"/></symbol>
     </defs>
   </svg>
 
-  <header class="top">
-    <div class="brand"><img src="./icon.svg" alt="" width="30" height="30" /><b>augur</b></div>
-    <nav class="rail" id="seg-mode" role="radiogroup" aria-label="Game mode">
-      <button type="button" role="radio" data-v="analysis" title="Analyse: scan, explore, top moves"><svg class="ic"><use href="#i-search"/></svg><span>Analyse</span></button>
-      <button type="button" role="radio" data-v="pvp" title="Player vs Player"><svg class="ic"><use href="#i-users"/></svg><span>PvP</span></button>
-      <button type="button" role="radio" data-v="bot" title="Play the bot"><svg class="ic"><use href="#i-bot"/></svg><span>Bot</span></button>
-      <button type="button" role="radio" data-v="tutor" title="Tutor lesson"><svg class="ic"><use href="#i-teacher"/></svg><span>Tutor</span></button>
-      <button type="button" role="radio" data-v="review" title="Game review"><svg class="ic"><use href="#i-chart"/></svg><span>Review</span></button>
+  <header class="nav" id="nav">
+    <a class="brand" href="#top" aria-label="Augur home"><img src="./icon.svg" alt="" width="32" height="32" /><b>AUGUR</b></a>
+    <nav class="links" aria-label="Sections">
+      <a href="#how">How it works</a><a href="#modes">Modes</a><a href="#features">Features</a><a href="#download">Download</a><a href="#faq">FAQ</a>
     </nav>
-    <div class="top-r">
-      <span class="status loading" id="status" role="status"><i></i><span>Loading…</span></span>
-      <div class="ng">
-        <button class="btn" id="btn-new" type="button" aria-haspopup="menu" aria-expanded="false" title="Start a new game"><svg class="ic"><use href="#i-plus"/></svg><span>New game</span></button>
-        <div class="ng-menu hidden" id="ng-menu" role="menu" aria-label="New game"></div>
-      </div>
-      <button class="btn" id="btn-reset-all" type="button" title="Reset everything to defaults"><svg class="ic"><use href="#i-reset"/></svg><span>Reset</span></button>
-      <button class="btn icon" id="btn-theme" type="button" title="Switch light / dark theme" aria-label="Switch theme"><svg class="ic"><use href="#i-moon"/></svg></button>
-      <button class="btn icon" id="btn-settings" type="button" title="Settings (AI tutor key)" aria-label="Settings"><svg class="ic"><use href="#i-gear"/></svg></button>
-      <button class="btn icon" id="btn-help" type="button" title="Shortcuts" aria-label="Shortcuts"><svg class="ic"><use href="#i-help"/></svg></button>
+    <div class="nav-r">
+      <button class="icon-btn" id="theme" type="button" aria-label="Switch theme" title="Switch light / dark theme"><svg class="ic"><use href="#i-sun"/></svg></button>
+      <a class="btn solid" href="./app.html">Launch app <svg class="ic"><use href="#i-arrow"/></svg></a>
     </div>
   </header>
 
-  <main class="layout">
-    <section class="board-col">
-      <div class="card board-card">
-        <div class="board-wrap">
-          <div class="evalbar" id="evalbar" title="Evaluation"><div class="fill"></div><span id="evaltext">0.0</span></div>
-          <div class="board-stack">
-            <div class="mat" id="mat-top"></div>
-            <div id="board"></div>
-            <div class="mat" id="mat-bot"></div>
-          </div>
-          <div class="side-players">
-            <div class="player" id="pl-top"><i class="chip"></i><b></b><span class="sub"></span><span class="think hidden"><u></u><u></u><u></u></span><span class="clock hidden">0:00</span></div>
-            <div class="player" id="pl-bot"><i class="chip"></i><b></b><span class="sub"></span><span class="think hidden"><u></u><u></u><u></u></span><span class="clock hidden">0:00</span></div>
-          </div>
+  <main id="top">
+    <!-- hero -->
+    <section class="hero">
+      <div class="hero-copy">
+        <span class="eyebrow in-up" style="--d:0ms"><i></i>Free · offline · open source</span>
+        <h1 class="in-up" style="--d:90ms">Read the board.<br /><span class="hl">See what comes next.</span></h1>
+        <p class="lead in-up" style="--d:190ms">In ancient Rome, an <b>augur</b> read the signs before a battle. Augur reads yours: paste a screenshot of any chess position and get the best moves, a bot to play, a tutor for every move and a full game review, all running on your own machine.</p>
+        <div class="cta in-up" style="--d:290ms">
+          <a class="btn solid lg" href="./app.html">Launch Augur <svg class="ic"><use href="#i-arrow"/></svg></a>
+          <a class="btn ghost lg" href="#download"><svg class="ic"><use href="#i-download"/></svg> Download</a>
         </div>
-        <div class="under">
-          <div class="turn" id="turn"><i></i><span>White to move</span></div>
-          <div class="tools">
-            <button class="btn icon" id="btn-back" type="button" title="Back (←)" aria-label="Previous move"><svg class="ic"><use href="#i-left"/></svg></button>
-            <button class="btn icon" id="btn-fwd" type="button" title="Forward (→)" aria-label="Next move"><svg class="ic"><use href="#i-right"/></svg></button>
-            <button class="btn" id="btn-flip" type="button" title="Flip board (F)"><svg class="ic"><use href="#i-flip"/></svg><span>Flip</span></button>
-            <button class="btn" id="btn-edit" type="button" title="Edit position (E)"><svg class="ic"><use href="#i-edit"/></svg><span>Edit</span></button>
-          </div>
+        <ul class="proof in-up" style="--d:390ms">
+          <li><svg class="ic"><use href="#i-lock"/></svg>No account, nothing uploaded</li>
+          <li><svg class="ic"><use href="#i-bolt"/></svg>Stockfish 19 in your browser</li>
+        </ul>
+      </div>
+
+      <div class="hero-board in-pop" style="--d:240ms" id="tilt">
+        <div class="hb-top">
+          <span class="hb-tag" id="hb-opening">Italian Game</span>
+          <span class="hb-eval" id="hb-eval">+0.3</span>
         </div>
-        <div class="palette hidden" id="palette"></div>
+        <div class="hb" id="hb" role="img" aria-label="An animated chess game with Augur's move grades"></div>
+        <div class="hb-bot">
+          <span class="hb-move" id="hb-move">1. e4</span>
+          <span class="hb-grade" id="hb-grade">Book</span>
+        </div>
       </div>
     </section>
 
-    <aside class="panel">
-      <div class="subnav" id="subnav" role="tablist" aria-label="Panel">
-        <button type="button" role="tab" data-tab="main"><span id="tab-main-label">Engine</span></button>
-        <button type="button" role="tab" data-tab="moves">Moves</button>
-        <button type="button" role="tab" data-tab="position">Position</button>
-      </div>
+    <!-- motif ticker -->
+    <div class="ticker" aria-hidden="true"><div class="ticker-in">
+      <span class="m good">Fork</span><span class="m bad">Hanging piece</span><span class="m miss">Missed mate</span><span class="m good">Pin</span><span class="m bad">Blunder</span><span class="m good">Skewer</span><span class="m miss">Missed capture</span><span class="m good">Discovered attack</span><span class="m bad">King safety</span><span class="m good">Brilliant</span>
+      <span class="m good">Fork</span><span class="m bad">Hanging piece</span><span class="m miss">Missed mate</span><span class="m good">Pin</span><span class="m bad">Blunder</span><span class="m good">Skewer</span><span class="m miss">Missed capture</span><span class="m good">Discovered attack</span><span class="m bad">King safety</span><span class="m good">Brilliant</span>
+    </div></div>
 
-      <section class="pane" data-pane="main">
-      <div class="card" id="card-game">
-        <div class="card-h"><div class="kick"><span class="kicker" id="mode-kicker">Analysis</span></div></div>
-        <div class="card-b">
-          <p class="mode-desc muted" id="mode-desc"></p>
-          <div class="opts hidden" id="opts-pvp">
-            <div class="row">
-              <div class="lbl-col"><span class="lbl">Hints</span><span class="muted small">Stockfish shows one suggested move on request</span></div>
-              <label class="switch"><input type="checkbox" id="hints" aria-label="Allow hints" /><span></span></label>
-            </div>
-          </div>
-          <div class="opts hidden" id="opts-bot">
-            <div class="row stack">
-              <span class="lbl">Difficulty</span>
-              <div class="seg wide" id="seg-level" role="radiogroup" aria-label="Difficulty">
-                <button type="button" role="radio" data-v="easy">Easy</button><button type="button" role="radio" data-v="intermediate">Intermediate</button><button type="button" role="radio" data-v="expert">Expert</button>
-              </div>
-              <span class="muted small" id="level-desc"></span>
-            </div>
-            <div class="row">
-              <span class="lbl">You play</span>
-              <div class="seg" id="seg-human" role="radiogroup" aria-label="Your colour"><button type="button" role="radio" data-v="w">White</button><button type="button" role="radio" data-v="b">Black</button></div>
-            </div>
-            <button class="btn full" id="btn-takeback" type="button"><svg class="ic"><use href="#i-undo"/></svg><span>Take back last move</span></button>
-          </div>
-          <div class="opts hidden" id="opts-board">
-            <div class="row">
-              <div class="lbl-col"><span class="lbl">Current board</span><span class="muted small">Continue from the position on the board, e.g. after a bot game</span></div>
-              <button class="btn sm" id="btn-from-board" type="button"><svg class="ic"><use href="#i-flip"/></svg><span>Start from here</span></button>
-            </div>
-          </div>
-          <div class="opts hidden" id="opts-time">
-            <div class="row stack">
-              <span class="lbl">Time control</span>
-              <div class="seg wide" id="seg-time" role="radiogroup" aria-label="Time control"><button type="button" role="radio" data-v="0">Untimed</button><button type="button" role="radio" data-v="180">3 min</button><button type="button" role="radio" data-v="300">5 min</button><button type="button" role="radio" data-v="600">10 min</button></div>
-            </div>
-          </div>
-        </div>
-      </div>
+    <!-- stats -->
+    <section class="stats">
+      <div class="stat rv" style="--d:0ms"><b data-count="0.3" data-dec="1" data-suffix="s">0.3s</b><span>to read a screenshot</span></div>
+      <div class="stat rv" style="--d:80ms"><b data-count="100" data-suffix="%">100%</b><span>offline after first load</span></div>
+      <div class="stat rv" style="--d:160ms"><b data-count="5">5</b><span>ways to play and learn</span></div>
+      <div class="stat rv" style="--d:240ms"><b data-prefix="$" data-count="0">$0</b><span>to run, forever</span></div>
+    </section>
 
-      <div class="card" id="card-play">
-        <div class="card-b">
-          <div class="kicker-row"><span class="kicker">Move timeline</span><span class="muted small" id="tl-count"></span></div>
-          <div class="timeline" id="timeline"></div>
-          <form id="move-form" autocomplete="off"><span class="side-tag" id="side-tag"><i></i><b>White</b></span><input id="move-in" placeholder="White's move: e4, Nf3, O-O…" aria-label="Enter a move" /></form>
-          <p class="muted small tip" id="move-tip">Type a move, or drag pieces on the board. Paste a move list or PGN to rebuild a game.</p>
-        </div>
+    <!-- how it works -->
+    <section class="sec" id="how">
+      <div class="sec-h rv"><span class="kick">How it works</span><h2>From a screenshot to a lesson in three steps</h2></div>
+      <div class="steps">
+        <div class="line"><i></i></div>
+        <article class="step rv rv-z" style="--d:0ms; --h: var(--blue)"><span class="num">01</span><svg class="ic"><use href="#i-image"/></svg><h3>Scan</h3><p>Paste, drop or open a screenshot from chess.com, Lichess or any app. A tiny neural network finds the board and reads every square in under a second.</p></article>
+        <article class="step rv rv-z" style="--d:140ms; --h: var(--sage)"><span class="num">02</span><svg class="ic"><use href="#i-search"/></svg><h3>Analyse</h3><p>Stockfish 19 runs in a Web Worker. See the top moves, play both sides, or let the bot take over from the position on your board.</p></article>
+        <article class="step rv rv-z" style="--d:280ms; --h: var(--rose)"><span class="num">03</span><svg class="ic"><use href="#i-teacher"/></svg><h3>Learn</h3><p>Every move is graded and explained: forks, pins, hanging pieces, missed mates. Review a whole game and try your own lines at any step.</p></article>
       </div>
+    </section>
 
-      <div class="card" id="card-engine">
-        <div class="card-h">
-          <h2 id="engine-title">Best moves</h2>
-          <div class="eng-ctl" id="eng-ctl">
-            <label class="switch" title="Analyse automatically after every move"><input type="checkbox" id="auto" /><span></span><em>auto</em></label>
-            <select id="think" title="Think time" aria-label="Think time">
-              <option value="500">0.5s</option><option value="1000">1s</option><option value="1500" selected>1.5s</option><option value="3000">3s</option><option value="6000">6s</option>
-            </select>
-          </div>
-        </div>
-        <div class="card-b">
-          <button class="primary" id="btn-suggest" type="button"><svg class="ic"><use href="#i-bulb"/></svg><span id="suggest-label">Suggest top 3</span><kbd>Space</kbd></button>
-          <ol class="lines" id="lines"></ol>
-          <p class="muted small fair">Position study only. Please don't use engine help in games you are playing.</p>
-        </div>
+    <!-- modes -->
+    <section class="sec" id="modes">
+      <div class="sec-h rv"><span class="kick">Game options</span><h2>Five modes, one board</h2><p>Switch any time from the top bar. Your position comes with you.</p></div>
+      <div class="modes">
+        <article class="mode rv rv-l" style="--d:0ms; --h: var(--blue)"><div class="mi"><svg class="ic"><use href="#i-search"/></svg></div><h3>Analyse</h3><p>Scan a screenshot, explore lines, and see the best move, top two or top three with an evaluation bar.</p><ul><li>Screenshot reader</li><li>Live engine lines</li><li>Edit any position</li></ul></article>
+        <article class="mode rv rv-r" style="--d:80ms; --h: var(--sage)"><div class="mi"><svg class="ic"><use href="#i-users"/></svg></div><h3>Player vs Player</h3><p>Two people, one board. Add a 3, 5 or 10 minute clock, and optionally allow a single hint.</p><ul><li>Chess clocks</li><li>Optional hints</li><li>Checkmate celebrations</li></ul></article>
+        <article class="mode rv rv-l" style="--d:0ms; --h: var(--amber)"><div class="mi"><svg class="ic"><use href="#i-bot"/></svg></div><h3>Play the bot</h3><p>Stockfish at three levels: Easy, Intermediate and Expert. Pick your colour, take moves back, play on the clock.</p><ul><li>Replies in a blink</li><li>Never hangs: built-in fallback</li><li>Continue from any position</li></ul></article>
+        <article class="mode rv rv-r" style="--d:80ms; --h: var(--violet)"><div class="mi"><svg class="ic"><use href="#i-teacher"/></svg></div><h3>Tutor lesson</h3><p>Play the bot while a tutor explains every move, yours and the bot's, in plain English with tips to build good habits.</p><ul><li>Grades from best to blunder</li><li>Bring your own AI key (optional)</li><li>Works without one</li></ul></article>
+        <article class="mode wide rv rv-z" style="--d:0ms; --h: var(--rose)"><div class="mi"><svg class="ic"><use href="#i-chart"/></svg></div><div><h3>Game review</h3><p>Paste a PGN from chess.com or Lichess and get accuracy for both sides, an evaluation graph, every move graded, the opening, and the key mistakes. Drag a piece at any step to explore your own line, with Stockfish's best move shown for both sides.</p></div><ul><li>Instant first pass</li><li>Refines in the background</li><li>Explore and reset</li></ul></article>
       </div>
+    </section>
 
-      <div class="card hidden" id="card-coach">
-        <div class="card-h"><div class="kick"><span class="kicker">Tutor lesson</span></div><button class="btn sm" id="btn-coach-settings" type="button"><svg class="ic"><use href="#i-gear"/></svg><span>AI settings</span></button></div>
-        <div class="card-b">
-          <p class="note hidden" id="coach-note"></p>
-          <div id="coach-feed"></div>
+    <!-- review preview -->
+    <section class="sec split" id="review">
+      <div class="rv rv-l">
+        <span class="kick">Game review</span>
+        <h2>See where the game was won or lost</h2>
+        <p class="lead">Every move gets a grade, from <b class="g1">Brilliant</b> to <b class="g2">Blunder</b>, with the tactics behind it spelled out. The review streams in move by move and gets sharper while you read.</p>
+        <a class="btn ghost" href="./app.html">Try a review <svg class="ic"><use href="#i-arrow"/></svg></a>
+      </div>
+      <div class="panel rv rv-r" style="--d:120ms">
+        <div class="acc"><div><span>White</span><b data-count="94.2" data-dec="1" data-suffix="%">94.2%</b></div><div><span>Black</span><b data-count="83.6" data-dec="1" data-suffix="%">83.6%</b></div></div>
+        <div class="bars">
+          <div class="bar"><span><i class="dot" style="--c:#1baca6"></i>Brilliant</span><em style="--w:12%"></em><b>1</b></div>
+          <div class="bar"><span><i class="dot" style="--c:#7fb13a"></i>Best</span><em style="--w:78%"></em><b>11</b></div>
+          <div class="bar"><span><i class="dot" style="--c:#f0b429"></i>Inaccuracy</span><em style="--w:28%"></em><b>3</b></div>
+          <div class="bar"><span><i class="dot" style="--c:#e58f2a"></i>Mistake</span><em style="--w:14%"></em><b>2</b></div>
+          <div class="bar"><span><i class="dot" style="--c:#ca3431"></i>Blunder</span><em style="--w:7%"></em><b>1</b></div>
         </div>
+        <div class="callout"><span class="pill">Blunder</span><span class="pill soft">Hanging piece</span><p>Bb2 leaves the bishop unprotected, and Bxb2 wins it. Before every move, list which of your pieces are attacked.</p></div>
       </div>
+    </section>
 
-      <div class="card hidden" id="card-review">
-        <div class="card-h"><h2>Game review</h2><button class="btn sm hidden" id="btn-rv-new" type="button"><svg class="ic"><use href="#i-plus"/></svg><span>New review</span></button></div>
-        <div class="card-b">
-          <div id="rv-input">
-            <textarea id="rv-pgn" rows="6" spellcheck="false" placeholder="Paste a game exported from chess.com, lichess or any app, PGN with headers, or just a move list (1. e4 e5 2. Nf3 …)"></textarea>
-            <div class="rv-row">
-              <button class="btn sm" id="btn-rv-file" type="button"><svg class="ic"><use href="#i-file"/></svg><span>Open .pgn…</span></button>
-              <input type="file" id="rv-file" accept=".pgn,.txt,text/plain" hidden />
-              <button class="btn sm" id="btn-rv-current" type="button">Use current game</button>
-              <div class="seg" id="seg-speed" role="radiogroup" aria-label="Analysis depth"><button type="button" role="radio" data-v="fast">Fast</button><button type="button" role="radio" data-v="std">Standard</button><button type="button" role="radio" data-v="deep">Deep</button></div>
-            </div>
-            <button class="primary" id="btn-rv-run" type="button"><svg class="ic"><use href="#i-chart"/></svg><span>Analyse game</span></button>
-            <p class="warn hidden" id="rv-warn"></p>
-          </div>
-          <div id="rv-progress" class="hidden">
-            <div class="prog"><i id="rv-bar"></i></div>
-            <div class="prog-row"><span class="muted" id="rv-prog-txt">Analysing…</span><button class="btn sm" id="btn-rv-cancel" type="button">Cancel</button></div>
-          </div>
-          <div id="rv-summary" class="hidden"></div>
-        </div>
+    <!-- features bento -->
+    <section class="sec" id="features">
+      <div class="sec-h rv"><span class="kick">Built different</span><h2>Everything a chess study session needs</h2></div>
+      <div class="bento">
+        <div class="tile t-a rv rv-z" style="--d:0ms; --h: var(--blue)"><svg class="ic"><use href="#i-lock"/></svg><h3>Private by design</h3><p>Your games never leave your device. The engine, the vision model and the coach all run locally, and it works with no connection.</p></div>
+        <div class="tile t-b rv rv-z" style="--d:80ms; --h: var(--sage)"><svg class="ic"><use href="#i-bolt"/></svg><h3>Instant</h3><p>0.3 second screenshot reads. Reviews of a whole game in about a second.</p></div>
+        <div class="tile t-c rv rv-z" style="--d:160ms; --h: var(--amber)"><svg class="ic"><use href="#i-clock"/></svg><h3>On the clock</h3><p>3, 5 and 10 minute games against a friend or the bot.</p></div>
+        <div class="tile t-d rv rv-z" style="--d:60ms; --h: var(--violet)"><svg class="ic"><use href="#i-teacher"/></svg><h3>A coach that explains</h3><p>Tactical motifs found by the board itself, then written up in plain English by built-in templates or your own AI key. Never a made-up move.</p></div>
+        <div class="tile t-e rv rv-z" style="--d:140ms; --h: var(--rose)"><svg class="ic"><use href="#i-share"/></svg><h3>Export and share</h3><p>PGN with analysis, FEN, a share link with no upload, or straight to Lichess.</p></div>
       </div>
-      <div class="card hidden" id="card-rmove"></div>
-      </section>
+    </section>
 
-      <div class="side-col" id="side-col">
-      <section class="pane" data-pane="moves">
-      <div class="card" id="card-moves">
-        <div class="card-h"><h2>Moves</h2><div class="hdr-btns"><button class="btn sm" id="btn-export" type="button" title="Export or share this game"><svg class="ic"><use href="#i-share"/></svg><span>Export</span></button><button class="btn sm" id="btn-reset" type="button" title="Rewind to the first position"><svg class="ic"><use href="#i-undo"/></svg><span>Rewind</span></button></div></div>
-        <div class="card-b">
-          <div class="movelist" id="movelist"></div>
-        </div>
+    <!-- download -->
+    <section class="sec" id="download">
+      <div class="sec-h rv"><span class="kick">Get Augur</span><h2>Use it in the browser, or install it</h2><p>The desktop app is the same Augur, packaged for macOS and Linux, and it runs fully offline.</p></div>
+      <div class="dl">
+        <a class="card dlc rv rv-z" style="--d:0ms; --h: var(--blue)" href="./app.html"><span class="os">Web</span><h3>Open in browser</h3><p>No install. Works on any modern browser, and can be added to your home screen.</p><span class="go">Launch app <svg class="ic"><use href="#i-arrow"/></svg></span></a>
+        <a class="card dlc rv rv-z" style="--d:100ms; --h: var(--sage)" href="https://github.com/1mystic/Augur/releases/latest"><span class="os">macOS</span><h3>Apple Silicon</h3><p>A <code>.dmg</code> for M-series Macs. First launch: right-click the app and choose Open.</p><span class="go">Download <svg class="ic"><use href="#i-download"/></svg></span></a>
+        <a class="card dlc rv rv-z" style="--d:200ms; --h: var(--amber)" href="https://github.com/1mystic/Augur/releases/latest"><span class="os">Linux</span><h3>Ubuntu and friends</h3><p>A <code>.deb</code> for Ubuntu and Debian, or an <code>.AppImage</code> that runs anywhere.</p><span class="go">Download <svg class="ic"><use href="#i-download"/></svg></span></a>
       </div>
-      </section>
+    </section>
 
-      <section class="pane" data-pane="position">
-      <div class="card" id="card-scan">
-        <div class="card-h"><h2>Scan or set up a position</h2><span class="muted small" id="scan-time"></span></div>
-        <div class="card-b">
-          <label class="drop" id="drop">
-            <input type="file" accept="image/*" id="file" hidden />
-            <div class="drop-empty" id="drop-empty">
-              <svg class="ic xl"><use href="#i-image"/></svg>
-              <div><b>Paste a screenshot</b> <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>V</kbd></div>
-              <div class="muted small">or drop / click to choose · chess.com, lichess, apps</div>
-            </div>
-            <canvas id="preview" class="hidden"></canvas>
-          </label>
-          <div class="scan-actions">
-            <button class="btn sm" id="btn-paste" type="button"><svg class="ic"><use href="#i-paste"/></svg><span>Paste</span></button>
-            <button class="btn sm" id="btn-open" type="button"><svg class="ic"><use href="#i-image"/></svg><span>Open…</span></button>
-            <button class="linkish" id="btn-ai" type="button">Read it with an AI chat instead →</button>
-          </div>
-          <p class="muted small hint hidden" id="crop-hint">Box wrong? Drag it, or pull the corner to resize, it re-reads instantly.</p>
+    <!-- faq -->
+    <section class="sec narrow" id="faq">
+      <div class="sec-h rv"><span class="kick">Questions</span><h2>Good to know</h2></div>
+      <div class="faq rv">
+        <details><summary>Is it really free?</summary><p>Yes. Augur is open source (GPL-3.0), runs on your own device, and needs no account. The only optional extra is your own AI API key for conversational explanations, which you pay your provider for directly.</p></details>
+        <details><summary>Where do my games go?</summary><p>Nowhere. Screenshots, positions and games stay in your browser or desktop app. Share links carry the moves inside the link itself, with nothing uploaded.</p></details>
+        <details><summary>How strong is the engine?</summary><p>It is Stockfish 19 compiled to WebAssembly, the same engine family used by Lichess and Chess.com. The bot plays at three strengths, from forgiving to full power.</p></details>
+        <details><summary>Does the tutor need an API key?</summary><p>No. Without one, explanations come from built-in templates that use the engine's own numbers and the tactics found on the board. Add a key in Settings if you want a more conversational tutor.</p></details>
+        <details><summary>Which sites can I scan or import from?</summary><p>Screenshots from chess.com, Lichess, apps and even video frames. For game review, paste a PGN from chess.com, Lichess or any other source.</p></details>
+      </div>
+    </section>
 
-          <div class="setup">
-            <div class="row"><span class="lbl">Seen from</span>
-              <div class="seg" id="seg-orient"><button type="button" data-v="w">White</button><button type="button" data-v="b">Black</button></div></div>
-            <div class="row"><span class="lbl">To move</span>
-              <div class="seg" id="seg-turn"><button type="button" data-v="w">White</button><button type="button" data-v="b">Black</button></div></div>
-            <div class="row"><span class="lbl">Castling</span>
-              <div class="chips" id="castle">
-                <label><input type="checkbox" value="K" />O-O</label><label><input type="checkbox" value="Q" />O-O-O</label>
-                <label class="b"><input type="checkbox" value="k" />o-o</label><label class="b"><input type="checkbox" value="q" />o-o-o</label>
-              </div></div>
-            <div class="row fen-row">
-              <input id="fen" spellcheck="false" aria-label="FEN" />
-              <button class="btn icon" id="btn-copy" type="button" title="Copy FEN" aria-label="Copy FEN"><svg class="ic"><use href="#i-copy"/></svg></button>
-            </div>
-            <p class="warn hidden" id="warn"></p>
-          </div>
-        </div>
-      </div>
-      </section>
-      </div>
-    </aside>
+    <!-- final cta -->
+    <section class="final rv rv-z">
+      <img src="./icon.svg" alt="" width="64" height="64" />
+      <h2>Your next move starts here.</h2>
+      <p>Open Augur, paste a position, and see what the board is telling you.</p>
+      <a class="btn solid lg" href="./app.html">Launch Augur <svg class="ic"><use href="#i-arrow"/></svg></a>
+    </section>
   </main>
 
-  <footer class="foot">Augur runs entirely in your browser · Stockfish 19 (GPLv3) · pieces by cburnett (CC BY-SA 3.0)</footer>
-
-  <dialog id="help">
-    <div class="dlg-h"><h3>Keyboard shortcuts</h3><button class="btn icon sm" data-close type="button" aria-label="Close"><svg class="ic"><use href="#i-close"/></svg></button></div>
-    <ul class="keys">
-      <li><span><kbd>Ctrl/⌘</kbd> <kbd>V</kbd></span>Paste a screenshot</li>
-      <li><span><kbd>Space</kbd></span>Suggest / hint</li>
-      <li><span><kbd>←</kbd> <kbd>→</kbd></span>Step through moves</li>
-      <li><span><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></span>Play a suggested line</li>
-      <li><span><kbd>F</kbd></span>Flip board</li>
-      <li><span><kbd>E</kbd></span>Edit position</li>
-      <li><span><kbd>T</kbd></span>Switch side to move</li>
-    </ul>
-    <p class="muted small">Edit mode: pick a piece below the board and click squares. Right-click clears a square. Drag to move pieces anywhere.</p>
-    <p class="muted small">Pieces: cburnett (CC BY-SA 3.0). Engine: Stockfish 19 lite (GPLv3) via stockfish.js. Vision model trained on open lichess piece sets.</p>
-    <form method="dialog" class="dlg-btns"><button class="primary auto">Got it</button></form>
-  </dialog>
-  <dialog id="settings">
-    <div class="dlg-h"><h3>Settings</h3><button class="btn icon sm" data-close type="button" aria-label="Close"><svg class="ic"><use href="#i-close"/></svg></button></div>
-    <div class="dlg-body">
-      <section class="set-sec">
-        <h4>General</h4>
-        <div class="row"><div class="lbl-col"><span class="lbl">Theme</span></div>
-          <div class="seg" id="set-theme" role="radiogroup" aria-label="Theme"><button type="button" role="radio" data-v="system">System</button><button type="button" role="radio" data-v="light">Light</button><button type="button" role="radio" data-v="dark">Dark</button></div></div>
-        <div class="row"><div class="lbl-col"><span class="lbl">Suggestions</span><span class="muted small">How many moves Stockfish suggests in Analysis</span></div>
-          <div class="seg" id="set-lines" role="radiogroup" aria-label="Suggestions"><button type="button" role="radio" data-v="1">Best only</button><button type="button" role="radio" data-v="2">Top 2</button><button type="button" role="radio" data-v="3">Top 3</button></div></div>
-        <div class="row"><div class="lbl-col"><span class="lbl">Auto-analyse</span><span class="muted small">Suggest after every move in Analysis</span></div>
-          <label class="switch"><input type="checkbox" id="set-auto" aria-label="Auto-analyse" /><span></span></label></div>
-        <div class="row"><div class="lbl-col"><span class="lbl">Think time</span><span class="muted small">Per suggestion</span></div>
-          <div class="seg" id="set-think" role="radiogroup" aria-label="Think time"><button type="button" role="radio" data-v="500">0.5s</button><button type="button" role="radio" data-v="1500">1.5s</button><button type="button" role="radio" data-v="3000">3s</button><button type="button" role="radio" data-v="6000">6s</button></div></div>
-      </section>
-      <section class="set-sec">
-        <h4>Board</h4>
-        <div class="row"><div class="lbl-col"><span class="lbl">Coordinates</span></div><label class="switch"><input type="checkbox" id="set-coords" aria-label="Show coordinates" /><span></span></label></div>
-        <div class="row"><div class="lbl-col"><span class="lbl">Legal move dots</span></div><label class="switch"><input type="checkbox" id="set-dots" aria-label="Show legal moves" /><span></span></label></div>
-        <div class="row"><div class="lbl-col"><span class="lbl">Evaluation bar</span></div><label class="switch"><input type="checkbox" id="set-evalbar" aria-label="Show evaluation bar" /><span></span></label></div>
-        <div class="row"><div class="lbl-col"><span class="lbl">Piece animation</span></div><label class="switch"><input type="checkbox" id="set-anim" aria-label="Animate pieces" /><span></span></label></div>
-        <div class="row"><div class="lbl-col"><span class="lbl">Always promote to queen</span><span class="muted small">Skip the promotion picker</span></div><label class="switch"><input type="checkbox" id="set-autoq" aria-label="Auto queen" /><span></span></label></div>
-      </section>
-      <section class="set-sec">
-        <h4>AI tutor</h4>
-        <p class="muted small">Add your own API key to get plain-English explanations of every move in <b>Tutor lesson</b> mode and the game review. The key stays in this browser and is sent only to the provider you choose.</p>
-        <div class="row"><div class="lbl-col"><span class="lbl">Explain</span></div>
-          <div class="seg" id="set-who" role="radiogroup" aria-label="Explain moves of"><button type="button" role="radio" data-v="all">Both sides</button><button type="button" role="radio" data-v="mine">My moves</button></div></div>
-        <div class="row"><div class="lbl-col"><span class="lbl">Explain for</span></div>
-          <div class="seg" id="set-level" role="radiogroup" aria-label="Student level"><button type="button" role="radio" data-v="beginner">Beginner</button><button type="button" role="radio" data-v="intermediate">Club</button><button type="button" role="radio" data-v="advanced">Advanced</button></div></div>
-        <label class="field"><span>Provider</span><select id="llm-provider"></select></label>
-        <label class="field" id="f-base"><span>Base URL</span><input id="llm-base" spellcheck="false" placeholder="https://…/v1" /></label>
-        <label class="field"><span>API key</span>
-          <div class="input-row"><input id="llm-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-…" /><button class="btn" id="btn-key-show" type="button">Show</button></div></label>
-        <label class="field"><span>Model</span><input id="llm-model" spellcheck="false" /></label>
-        <p class="muted small hidden" id="llm-status"></p>
-        <div class="dlg-btns spread"><button class="btn" id="btn-llm-clear" type="button">Remove key</button><span class="grow"></span><button class="btn" id="btn-llm-test" type="button">Test</button><button class="primary auto" id="btn-llm-save" type="button">Save</button></div>
-      </section>
-    </div>
-    <div class="dlg-foot"><button class="btn" id="btn-prefs-reset" type="button">Restore defaults</button><span class="grow"></span><button class="primary auto" data-close type="button">Done</button></div>
-  </dialog>
-  <dialog id="export">
-    <div class="dlg-h"><h3>Export &amp; share</h3><button class="btn icon sm" data-close type="button" aria-label="Close"><svg class="ic"><use href="#i-close"/></svg></button></div>
-    <div class="dlg-body">
-      <section class="set-sec">
-        <h4>PGN</h4>
-        <div class="row"><div class="lbl-col"><span class="lbl">Include analysis</span><span class="muted small" id="ex-annot-hint">Move grades and engine evaluations as PGN comments</span></div>
-          <label class="switch"><input type="checkbox" id="ex-annot" aria-label="Include analysis" /><span></span></label></div>
-        <textarea id="ex-pgn" class="ex-text" rows="8" readonly spellcheck="false" aria-label="PGN"></textarea>
-        <div class="ex-btns">
-          <button class="btn sm" id="ex-copy-pgn" type="button"><svg class="ic"><use href="#i-copy"/></svg><span>Copy PGN</span></button>
-          <button class="btn sm" id="ex-download" type="button"><svg class="ic"><use href="#i-download"/></svg><span>Download .pgn</span></button>
-        </div>
-      </section>
-      <section class="set-sec">
-        <h4>Current position (FEN)</h4>
-        <div class="input-row"><input id="ex-fen" class="ex-text" readonly spellcheck="false" aria-label="FEN" /><button class="btn" id="ex-copy-fen" type="button">Copy</button></div>
-      </section>
-      <section class="set-sec">
-        <h4>Share</h4>
-        <div class="ex-btns">
-          <button class="btn sm" id="ex-link" type="button"><svg class="ic"><use href="#i-link"/></svg><span>Copy share link</span></button>
-          <button class="btn sm" id="ex-lichess" type="button">Open in Lichess</button>
-        </div>
-        <p class="muted small">The link carries the moves itself; nothing is uploaded. Opening it loads the game into Augur.</p>
-      </section>
-    </div>
-  </dialog>
-  <dialog id="confirm">
-    <h3 id="confirm-title">Are you sure?</h3>
-    <p class="muted" id="confirm-msg"></p>
-    <div class="dlg-btns"><button class="btn" id="confirm-no" type="button">Cancel</button><button class="primary auto" id="confirm-yes" type="button">Continue</button></div>
-  </dialog>
-  <dialog id="ai">
-    <div class="dlg-h"><h3>Read the board with an AI chat</h3><button class="btn icon sm" data-close type="button" aria-label="Close"><svg class="ic"><use href="#i-close"/></svg></button></div>
-    <ol class="steps">
-      <li>Copy this prompt, open any AI chat (Gemini, ChatGPT, Claude…), paste your screenshot + the prompt.</li>
-      <li>Paste its reply below, JSON, a FEN, or the whole message, Augur finds the position in it.</li>
-    </ol>
-    <div class="prompt-wrap"><textarea id="ai-prompt" readonly rows="9"></textarea><button class="btn sm" id="btn-ai-copy" type="button">Copy prompt</button></div>
-    <textarea id="ai-reply" rows="4" placeholder='{"fen": "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3", "bottom": "white"}'></textarea>
-    <p class="warn hidden" id="ai-warn"></p>
-    <div class="dlg-btns"><button class="btn" id="btn-ai-cancel" type="button">Cancel</button><button class="primary auto" id="btn-ai-load" type="button">Load position</button></div>
-  </dialog>
-  <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
-  <script type="module" src="./src/main.js"></script>
+  <footer class="foot">
+    <div class="fb"><img src="./icon.svg" alt="" width="24" height="24" /><b>AUGUR</b></div>
+    <p>Stockfish 19 (GPLv3) · pieces by cburnett (CC BY-SA 3.0) · GPL-3.0-or-later</p>
+    <a href="https://github.com/1mystic/Augur"><svg class="ic"><use href="#i-github"/></svg>GitHub</a>
+  </footer>
 </body>
 </html>
