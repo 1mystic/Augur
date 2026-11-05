@@ -5,6 +5,7 @@ import { Board, pieceSrc } from './board.js';
 import { Engine } from './engine.js';
 import { pickMove } from './minibot.js';
 import { detectMotifs } from './motifs.js';
+import { moveSound } from './sound.js';
 import { saveGame, getGame, newId } from './store.js';
 import { compact, hydrate, resultOf, openingOf } from './games.js';
 import { detectBoard, fallbackBox } from './vision/detect.js';
@@ -21,7 +22,7 @@ const RAW = ['#6f86ff', '#4fbf8f', '#f08a6c'];
 const store = { get(k, d) { try { const v = localStorage.getItem('augur:' + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
   set(k, v) { try { localStorage.setItem('augur:' + k, JSON.stringify(v)); } catch { /* private mode */ } } };
 
-const PREF_DEFAULTS = { history: true, lines: 3, coords: true, dots: true, evalbar: true, anim: true, autoq: false, who: 'all', level: 'intermediate' };
+const PREF_DEFAULTS = { history: true, sound: true, lines: 3, coords: true, dots: true, evalbar: true, anim: true, autoq: false, who: 'all', level: 'intermediate' };
 const P = { ...PREF_DEFAULTS, ...store.get('prefs', {}) };
 const S = {
   img: null, box: null, grid: null,
@@ -150,6 +151,7 @@ const humanCanMove = () => S.mode === 'review' ? R.status === 'done' && S.valid 
 
 // ---------- rendering ----------
 let board;
+let soundPly = 0;
 function refresh() {
   const fen = curFen(), g = S.valid ? new Chess(fen) : null;
   const pieces = parsePlacement(fen.split(' ')[0]);
@@ -192,6 +194,9 @@ function refresh() {
   $('#btn-edit').classList.toggle('on', S.edit); $('#palette').classList.toggle('hidden', !S.edit);
   $('#evalbar').classList.toggle('flip', S.orient === 'b');
   renderMoves(); renderTimeline(); renderLines(); renderMaterial(pieces);
+  // one step forward (a move played or stepped through) gets a sound; jumps, loads and edits stay silent
+  if (P.sound && last && !S.edit && S.ply === soundPly + 1) moveSound(last.san);
+  soundPly = S.ply;
   syncBot();
   scheduleLayout();
   scheduleSave();
@@ -218,7 +223,8 @@ function renderMaterial(pieces) {
     const opp = side === 'w' ? 'b' : 'w', icons = [];
     for (const t of ['q', 'r', 'b', 'n', 'p']) for (let i = count[opp][t]; i < MAT_START[t]; i++) icons.push(`<img src="${pieceSrc(opp === 'w' ? t.toUpperCase() : t)}" alt="">`);
     const lead = side === 'w' ? diff : -diff;
-    return (icons.length ? `<span class="mat-pcs">${icons.join('')}</span>` : '') + (lead > 0 ? `<span class="mat-up">+${lead}</span>` : '');
+    const name = vsBot() ? (side !== S.bot.human ? `Bot · ${LEVELS[S.bot.level].label}` : 'You') : side === 'w' ? 'White' : 'Black';
+    return `<span class="mat-who ${side}"><i></i>${name}</span>` + (icons.length ? `<span class="mat-pcs">${icons.join('')}</span>` : '') + (lead > 0 ? `<span class="mat-up">+${lead}</span>` : '');
   };
   const top = S.orient === 'w' ? 'b' : 'w';
   $('#mat-top').innerHTML = strip(top); $('#mat-bot').innerHTML = strip(S.orient);
@@ -404,6 +410,7 @@ function renderMode(turn) {
     el.querySelector('b').textContent = isBot ? `Bot · ${LEVELS[S.bot.level].label}` : bot ? 'You' : side === 'w' ? 'White' : 'Black';
     el.querySelector('.sub').textContent = bot ? (side === 'w' ? 'White' : 'Black') : '';
   }
+  renderClocks();
   $('#card-coach').classList.toggle('hidden', S.mode !== 'tutor'); $('#card-review').classList.toggle('hidden', S.mode !== 'review');
   $('#card-play').classList.toggle('hidden', S.mode === 'review' && !R.rows.length);
   $('#mode-kicker').textContent = { analysis: 'Analysis', pvp: 'Game settings', bot: 'Bot settings', tutor: 'Lesson settings', review: 'Game review' }[S.mode];
@@ -421,27 +428,32 @@ function warmBot() { if (botFails >= 2) return; botEngine ??= new Engine({ multi
 const DESKTOP = matchMedia('(min-width: 981px)');
 const PANEL_W = 330, PANEL_H = 300, GAP = 18;
 let layoutQueued = false;
+// mode bar: above the panel tabs on desktop, in the header on phones (where the panel sits far below the board)
+function placeModeBar() {
+  const bar = $('#seg-mode'), want = DESKTOP.matches ? $('.panel') : $('.top');
+  if (bar.parentElement === want) return;
+  if (DESKTOP.matches) want.insertBefore(bar, $('#subnav')); else want.insertBefore(bar, $('.top-r'));
+}
 function scheduleLayout() { if (!layoutQueued) { layoutQueued = true; requestAnimationFrame(() => { layoutQueued = false; relayout(); }); } }
 function relayout() {
+  placeModeBar();
   const root = document.documentElement.style, layout = $('.layout');
   if (!DESKTOP.matches) { layout.classList.remove('below'); layout.style.height = ''; for (const v of ['--board', '--bw']) root.removeProperty(v); return; }
-  layout.style.height = Math.floor(innerHeight - $('.top').offsetHeight) + 'px';   // exactly the space under the header: no page scroll
-  const cs = getComputedStyle(layout), card = $('.board-card'), stack = $('#board');
-  const H = Math.floor(layout.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom));
-  const W = layout.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
-  // width around the board, from its parts: the card can be capped at the old size, so measuring it would under-count
-  const ccs = getComputedStyle(card), wrapGap = parseFloat(getComputedStyle($('.board-wrap')).columnGap) || 0;
-  const part = w => (w && w.offsetParent ? w.offsetWidth + wrapGap : 0);
-  const extraW = parseFloat(ccs.paddingLeft) + parseFloat(ccs.paddingRight) + part($('#evalbar')) + part($('.side-players'));
-  const extraH = card.offsetHeight - stack.offsetHeight;
-  const minBoard = Math.max(360, Math.round(H * 0.6));
-  // compare panel-beside vs panel-below and keep whichever gives the bigger board (beside wins ties: less scrolling)
-  const side = Math.min(H - extraH, W - extraW - GAP - PANEL_W);
-  const under = Math.min(W - extraW, H - extraH - GAP - PANEL_H);
-  const below = under > side && side < minBoard;
-  const S = Math.max(240, below ? under : side);
-  layout.classList.toggle('below', below);
-  root.setProperty('--board', S + 'px'); root.setProperty('--bw', S + extraW + 'px');
+  // desktop: a fixed 50/50 split in every mode. The board column never changes width; the board takes the
+  // largest square that fits it (the eval bar keeps its slot even when hidden, so nothing shifts between modes)
+  layout.style.height = Math.floor(innerHeight - $('.top').offsetHeight) + 'px';
+  const cs = getComputedStyle(layout), card = $('.board-card'), ccs = getComputedStyle(card);
+  const H = layout.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+  const colW = (layout.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - (parseFloat(cs.columnGap) || 0)) / 2;
+  const box = (a, b) => parseFloat(ccs[a]) + parseFloat(ccs[b]);
+  const wrapGap = parseFloat(getComputedStyle($('.board-wrap')).columnGap) || 0;
+  const extraW = box('paddingLeft', 'paddingRight') + box('borderLeftWidth', 'borderRightWidth') + $('#evalbar').offsetWidth + wrapGap + (parseFloat(getComputedStyle($('.board-wrap')).paddingRight) || 0);
+  const under = $('.under');
+  const extraH = box('paddingTop', 'paddingBottom') + box('borderTopWidth', 'borderBottomWidth') + ($('.board-stack').offsetHeight - $('#board').offsetHeight)
+    + under.offsetHeight + parseFloat(getComputedStyle(under).marginTop);
+  const S = Math.max(240, Math.floor(Math.min(colW - extraW, H - extraH)));
+  layout.classList.remove('below');
+  root.setProperty('--board', S + 'px'); root.setProperty('--bw', Math.floor(colW) + 'px');
 }
 
 /** Panel sub-navbar: one group of cards at a time. */
@@ -1195,7 +1207,7 @@ function setPref(k, v) {
 function syncPrefsUI() {
   const seg = (sel, v) => document.querySelectorAll(sel + ' button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === String(v))));
   seg('#set-theme', store.get('theme', 'system')); seg('#set-lines', P.lines); seg('#set-who', P.who); seg('#set-level', P.level); seg('#set-think', $('#think').value);
-  for (const [id, k] of [['coords', 'coords'], ['dots', 'dots'], ['evalbar', 'evalbar'], ['anim', 'anim'], ['autoq', 'autoq'], ['history', 'history']]) $('#set-' + id).checked = P[k];
+  for (const [id, k] of [['coords', 'coords'], ['dots', 'dots'], ['evalbar', 'evalbar'], ['anim', 'anim'], ['autoq', 'autoq'], ['history', 'history'], ['sound', 'sound']]) $('#set-' + id).checked = P[k];
   $('#set-auto').checked = $('#auto').checked;
 }
 function wirePrefs() {
@@ -1205,7 +1217,7 @@ function wirePrefs() {
   on('#set-who', v => setPref('who', v));
   on('#set-level', v => setPref('level', v));
   on('#set-think', v => { $('#think').value = v; store.set('think', v); });
-  for (const k of ['coords', 'dots', 'evalbar', 'anim', 'autoq', 'history']) $('#set-' + k).addEventListener('change', e => setPref(k, e.target.checked));
+  for (const k of ['coords', 'dots', 'evalbar', 'anim', 'autoq', 'history', 'sound']) $('#set-' + k).addEventListener('change', e => setPref(k, e.target.checked));
   $('#set-auto').addEventListener('change', e => { $('#auto').checked = e.target.checked; $('#auto').dispatchEvent(new Event('change')); });
   $('#btn-prefs-reset').addEventListener('click', () => {
     Object.assign(P, PREF_DEFAULTS); try { localStorage.removeItem('augur:prefs'); } catch { /* ignore */ }

@@ -734,30 +734,30 @@ body { font-size: 15px; font-weight: 450; letter-spacing: 0; }
 .top { display: flex; align-items: center; gap: 18px; }
 .top .brand { flex: none; }
 .top .top-r { margin-left: 0; }
-.top .rail { position: static; flex-direction: row; gap: 4px; padding: 4px; margin: 0 auto 0 8px; overflow-x: auto; }
-.top .rail button { flex-direction: row; gap: 8px; padding: 9px 14px; font-size: 11px; white-space: nowrap; }
-.top .rail .ic { width: 18px; height: 18px; }
+:is(.top, .panel) .rail { position: static; flex-direction: row; gap: 4px; padding: 4px; margin: 0 auto 0 8px; overflow-x: auto; }
+:is(.top, .panel) .rail button { flex-direction: row; gap: 8px; padding: 9px 14px; font-size: 11px; white-space: nowrap; }
+:is(.top, .panel) .rail .ic { width: 18px; height: 18px; }
 @media (min-width: 981px) {
   .layout { grid-template-columns: var(--bw, 60vw) minmax(0, 1fr); grid-template-areas: "board panel"; }
   .layout.below { grid-template-columns: minmax(0, 1fr); grid-template-areas: "board" "panel"; }
 }
-@media (max-width: 1180px) { .top .rail button span { display: none; } .top .rail button { padding: 9px 11px; } }
+@media (max-width: 1180px) { :is(.top, .panel) .rail button span { display: none; } :is(.top, .panel) .rail button { padding: 9px 11px; } }
 @media (max-width: 980px) {
   .top { flex-wrap: wrap; }
-  .top .rail { order: 3; width: 100%; margin: 0; }
-  .top .rail button { flex: 1 0 auto; justify-content: center; }
-  .top .rail button span { display: inline; }
+  :is(.top, .panel) .rail { order: 3; width: 100%; margin: 0; }
+  :is(.top, .panel) .rail button { flex: 1 0 auto; justify-content: center; }
+  :is(.top, .panel) .rail button span { display: inline; }
 }
 
 /* top mode bar: same panel + pill language as the panel tabs, with a bold full-colour pop on the active mode */
 .top { margin-bottom: 0; }
-.top .rail { background: var(--surface); padding: 4px; gap: 4px; border-radius: var(--r); }
-.top .rail button { color: var(--muted); font-weight: 600; border: 1px solid transparent; border-radius: var(--r-sm); transition: color .15s, background .15s; }
-.top .rail button .ic { opacity: .65; transition: opacity .15s, transform .15s; }
-.top .rail button:hover { background: var(--hs); color: var(--h); }
-.top .rail button:hover .ic { opacity: 1; }
-.top .rail button[aria-checked="true"] { background: var(--hs); border-color: var(--hl); color: var(--h); font-weight: 800; box-shadow: none; }
-.top .rail button[aria-checked="true"] .ic { opacity: 1; stroke-width: 2.6; transform: scale(1.12); }
+:is(.top, .panel) .rail { background: var(--surface); padding: 4px; gap: 4px; border-radius: var(--r); }
+:is(.top, .panel) .rail button { color: var(--muted); font-weight: 600; border: 1px solid transparent; border-radius: var(--r-sm); transition: color .15s, background .15s; }
+:is(.top, .panel) .rail button .ic { opacity: .65; transition: opacity .15s, transform .15s; }
+:is(.top, .panel) .rail button:hover { background: var(--hs); color: var(--h); }
+:is(.top, .panel) .rail button:hover .ic { opacity: 1; }
+:is(.top, .panel) .rail button[aria-checked="true"] { background: var(--hs); border-color: var(--hl); color: var(--h); font-weight: 800; box-shadow: none; }
+:is(.top, .panel) .rail button[aria-checked="true"] .ic { opacity: 1; stroke-width: 2.6; transform: scale(1.12); }
 
 /* lesson-first flow: in Tutor and Review the focused move card leads the panel and spans its full width */
 [data-mode="tutor"] #card-coach { order: -3; grid-column: 1 / -1; }
@@ -774,10 +774,10 @@ body { font-size: 15px; font-weight: 450; letter-spacing: 0; }
   .top-r .btn, .top-r .btn.icon, .top .status { height: 32px; }
   .top-r .btn.icon, .top-r .btn:not(.icon) { width: 32px; padding: 0; }
   .top-r .btn:not(.icon) span, .top .status span { display: none; }
-  .top .rail { order: 3; width: 100%; margin: 0; justify-content: space-between; }
+  :is(.top, .panel) .rail { order: 3; width: 100%; margin: 0; justify-content: space-between; }
 }
 @media (max-width: 480px) {
-  .top .rail button { flex: 1 1 0; flex-direction: column; gap: 4px; padding: 7px 2px; font-size: 9.5px; border-radius: var(--r-sm); }
+  :is(.top, .panel) .rail button { flex: 1 1 0; flex-direction: column; gap: 4px; padding: 7px 2px; font-size: 9.5px; border-radius: var(--r-sm); }
 }
 
 /* settings card always sits last in the main view, in every mode */
@@ -885,3 +885,267 @@ body.timed .side-players { display: flex; }
 
 /* the logo is a link now: no underline, inherit colour */
 a.brand, a.brand:hover, a.btn, a.btn:hover { text-decoration: none; color: inherit; }
+
+/* =====================================================================
+   Bold pass: lifted dark theme (clear tonal steps + visible edges), the
+   landing page's springy interactions, and a board that leads the page.
+   ===================================================================== */
+:root { --ease: cubic-bezier(.2, .8, .2, 1); --spring: cubic-bezier(.34, 1.56, .64, 1); --ring: rgba(27, 29, 39, .08); }
+:root[data-theme="dark"] {
+  --bg: #1b1c20; --surface: #26272d; --surface-2: #313239; --inset: #17181b;
+  --ink: #f4f4f6; --ink-soft: #d4d5db; --muted: #a6a8b2;
+  --border: rgba(255, 255, 255, .1); --border-strong: rgba(255, 255, 255, .2); --ring: rgba(255, 255, 255, .12);
+  --blue: #9cc0ff; --sage: #7ee2a8; --rose: #ff9ebd; --amber: #ffd070; --violet: #c6aeff;
+  --accent: var(--blue); --accent-hover: #bcd4ff; --accent-ink: #17181b;
+  --accent-soft: rgba(156, 192, 255, .18); --accent-line: rgba(156, 192, 255, .55);
+  --blue-soft: rgba(156, 192, 255, .18); --blue-line: rgba(156, 192, 255, .55);
+  --sage-soft: rgba(126, 226, 168, .16); --sage-line: rgba(126, 226, 168, .55);
+  --rose-soft: rgba(255, 158, 189, .17); --rose-line: rgba(255, 158, 189, .55);
+  --amber-soft: rgba(255, 208, 112, .16); --amber-line: rgba(255, 208, 112, .55);
+  --violet-soft: rgba(198, 174, 255, .18); --violet-line: rgba(198, 174, 255, .55);
+  --warn-soft: rgba(255, 158, 189, .17);
+  --sq-l: #d6dbf0; --sq-d: #7c88bb;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1b1c20; --surface: #26272d; --surface-2: #313239; --inset: #17181b;
+    --ink: #f4f4f6; --ink-soft: #d4d5db; --muted: #a6a8b2;
+    --border: rgba(255, 255, 255, .1); --border-strong: rgba(255, 255, 255, .2); --ring: rgba(255, 255, 255, .12);
+    --blue: #9cc0ff; --sage: #7ee2a8; --rose: #ff9ebd; --amber: #ffd070; --violet: #c6aeff;
+    --accent: var(--blue); --accent-hover: #bcd4ff; --accent-ink: #17181b;
+    --accent-soft: rgba(156, 192, 255, .18); --accent-line: rgba(156, 192, 255, .55);
+    --blue-soft: rgba(156, 192, 255, .18); --blue-line: rgba(156, 192, 255, .55);
+    --sage-soft: rgba(126, 226, 168, .16); --sage-line: rgba(126, 226, 168, .55);
+    --rose-soft: rgba(255, 158, 189, .17); --rose-line: rgba(255, 158, 189, .55);
+    --amber-soft: rgba(255, 208, 112, .16); --amber-line: rgba(255, 208, 112, .55);
+    --violet-soft: rgba(198, 174, 255, .18); --violet-line: rgba(198, 174, 255, .55);
+    --warn-soft: rgba(255, 158, 189, .17);
+    --sq-l: #d6dbf0; --sq-d: #7c88bb;
+  }
+}
+
+/* type: Outfit everywhere (board labels too), heavier weights */
+body { font-weight: 500; }
+.board, .board * { font-family: var(--sans); }
+.sq .cf, .sq .cr { font-weight: 800; font-size: clamp(9px, 1.05vw, 12px); }
+.brand b { font-weight: 900; font-size: 25px; letter-spacing: .03em; }
+.card h2, .kicker { font-weight: 800; }
+.lesson-title { font-weight: 800; }
+.btn, .primary, .status, .tchip { font-weight: 800; }
+.rail button, .subnav button { font-weight: 700; }
+
+/* panels get a real edge: ring + soft depth, so every component separates from the page (visible in the dark theme most) */
+.rail, .subnav, :is(.top, .panel) .rail { box-shadow: 0 0 0 1px var(--ring), 0 14px 30px -22px rgba(10, 12, 30, .55); }
+.btn, .status, .seg, .clock, .side-players .player, .lines li, .lesson-stats div, .acc > div, .graph, .ctable, .tipbox, .drop, .prov { box-shadow: 0 0 0 1px var(--ring); }
+#move-in, .fen-row input, .field input, .field select, .ex-text, #rv-pgn { box-shadow: 0 0 0 1px var(--ring); }
+#move-in:focus, .fen-row input:focus, .field input:focus, .field select:focus, .ex-text:focus, #rv-pgn:focus { outline: none; box-shadow: 0 0 0 2px var(--accent); }
+dialog { box-shadow: 0 0 0 1px var(--border-strong), 0 40px 80px -30px rgba(0, 0, 0, .7); }
+dialog::backdrop { background: rgba(8, 10, 22, .62); backdrop-filter: blur(3px); }
+.card-h { background: var(--hs, var(--surface-2)); }
+:root[data-theme="dark"] .card-h { background: color-mix(in srgb, var(--h, var(--blue)) 14%, var(--surface)); }
+.card h2, .card .kicker { color: var(--h, var(--ink)); }
+
+/* springy hover / press, same feel as the landing page */
+.btn, .primary, .tchip, .rail button, .subnav button, .lines li, .lesson-stats div, .acc > div, .seg button, .status, .side-players .player {
+  transition: transform .22s var(--ease), box-shadow .22s var(--ease), background .18s, color .18s, border-color .18s;
+}
+.btn:hover, .primary:hover, .lines li:hover { box-shadow: 0 0 0 1px var(--accent-line), 0 12px 20px -12px rgba(10, 12, 30, .55); }
+.btn:active, .primary:active, .tchip:active, .rail button:active, .subnav button:active, .seg button:active { transform: translateY(0) scale(.96); transition-duration: .08s; }
+.btn .ic, .primary .ic, .rail button .ic { transition: transform .25s var(--spring); }
+.primary { background: var(--hs, var(--accent-soft)); font-weight: 800; letter-spacing: .08em; }
+.primary:hover { background: var(--h, var(--accent)); color: var(--accent-ink); box-shadow: 0 14px 24px -12px var(--h, var(--accent)); }
+:is(.top, .panel) .rail button:hover .ic { transform: scale(1.12); }
+:is(.top, .panel) .rail button[aria-checked="true"] { box-shadow: 0 0 0 1px var(--hl); }
+.subnav button[aria-selected="true"] { box-shadow: 0 0 0 1px var(--hl); font-weight: 800; }
+.brand { transition: transform .25s var(--spring); }
+.brand b::after { content: ""; display: inline-block; width: .3em; height: .3em; margin-left: .12em; border-radius: 50%; background: var(--blue); transition: transform .3s var(--spring); }
+
+/* panel cards rise in as a view or mode appears */
+@keyframes rise { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
+.pane:not([hidden]) > .card:not(.hidden) { animation: rise .45s var(--ease) both; }
+.pane > .card:nth-child(2) { animation-delay: .05s; } .pane > .card:nth-child(3) { animation-delay: .1s; }
+.pane > .card:nth-child(4) { animation-delay: .15s; } .pane > .card:nth-child(n+5) { animation-delay: .2s; }
+.ng-menu { animation: rise .25s var(--ease) both; transform-origin: top right; }
+dialog[open] { animation: rise .3s var(--ease) both; }
+
+/* the board leads: bigger frame, lifted off the page, with its own interactions */
+.board-card { padding: 14px; border-radius: calc(var(--r) + 4px); background: var(--surface); }
+:root { --mat-h: 22px; }
+.under { margin-top: 8px; }
+@media (min-width: 981px) { .top { padding-top: 9px; padding-bottom: 9px; } .layout { padding-bottom: 12px; } }
+.board { border-radius: 14px; box-shadow: 0 0 0 4px var(--surface-2), 0 0 0 5px var(--ring), 0 26px 50px -24px rgba(8, 10, 28, .75); }
+:root[data-theme="dark"] .board { box-shadow: 0 0 0 4px var(--surface-2), 0 0 0 5px var(--border-strong), 0 26px 50px -22px rgba(0, 0, 0, .85); }
+.sq.last::before { background: color-mix(in srgb, var(--amber) 62%, transparent); }
+.sq.sel::before { background: color-mix(in srgb, var(--blue) 55%, transparent); }
+.sq { transition: filter .12s; }
+.board:not(.is-dragging) .sq:hover { filter: brightness(1.07) saturate(1.1); }
+.sq.dot::after { left: 34%; top: 34%; width: 32%; height: 32%; background: #1d2240; opacity: .32; transition: transform .2s var(--spring), opacity .15s; }
+.sq.cap::after { inset: 3%; border: 6px solid color-mix(in srgb, var(--rose) 80%, #1b1d27); opacity: .65; transition: transform .2s var(--spring); }
+.sq.dot:hover::after { opacity: .5; }
+.sq.cap:hover::after { opacity: .95; }
+.sq.check::before { background: radial-gradient(circle, rgba(255, 70, 90, .95) 0%, rgba(255, 70, 90, .4) 48%, transparent 74%); animation: pulse-chk 1.2s ease-in-out infinite; }
+@keyframes pulse-chk { 50% { opacity: .55; } }
+.pc { transition: transform .24s var(--ease), scale .18s var(--spring), filter .18s; will-change: auto; }
+.pc.sliding { z-index: 3; }
+.pc.lift { scale: 1.12; filter: drop-shadow(0 10px 7px rgba(8, 10, 28, .42)); z-index: 2; }
+.pc.ghost { opacity: .28; scale: 1; }
+.pc.floating { scale: 1; filter: drop-shadow(0 14px 10px rgba(8, 10, 28, .45)); }
+.sq .cf, .sq .cr { opacity: .9; }
+.sq.l .cf, .sq.l .cr { color: #6877ad; }
+.sq.d .cf, .sq.d .cr { color: #f4f6fd; }
+.turn i { transition: transform .3s var(--spring), background .2s; }
+.mat-pcs img { transition: transform .2s var(--spring); }
+.side-players .player.active { box-shadow: 0 0 0 1px var(--accent-line), 0 12px 22px -14px var(--accent); }
+.evalbar { border-radius: 10px; overflow: hidden; box-shadow: 0 0 0 1px var(--ring); }
+
+@media (prefers-reduced-motion: reduce) {
+  .pane > .card, .ng-menu, dialog[open], .sq.check::before { animation: none !important; }
+  .btn:hover, .primary:hover, .tchip:hover, .lines li:hover, .brand:hover { transform: none; }
+}
+.pref-noanim .pc, .pref-noanim .btn, .pref-noanim .card { transition: none; }
+.pref-noanim .pane > .card { animation: none !important; }
+
+/* theme toggle: circular colour fill on hover, no movement (same as the landing and history pages) */
+#btn-theme { position: relative; overflow: hidden; isolation: isolate; }
+#btn-theme::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: 50%; background: var(--blue); transform: scale(0); transition: transform .35s var(--ease); }
+#btn-theme:hover { transform: none; box-shadow: none; border-color: var(--blue); color: var(--bg); background: var(--surface-2); }
+#btn-theme:hover::before { transform: scale(1.5); }
+#btn-theme:hover .ic { transform: none; }
+
+/* UI fixes: buttons keep one line, the turn marker is visible on dark panels */
+.btn { white-space: nowrap; }
+.turn i { box-shadow: 0 0 0 1.5px var(--border-strong); }
+
+/* panel cards and move pills keep their original flat look */
+.card { box-shadow: none; }
+.tchip, .tchip:hover, .tchip.cur { box-shadow: none; }
+.tchip:active { transform: none; }
+
+/* mode bar sits above the panel tabs on desktop (main.js moves it); header keeps just the logo and actions */
+.top .top-r { margin-left: auto; }
+@media (min-width: 981px) {
+  .panel .rail { flex: none; margin: 0; width: auto; display: flex; overflow: visible; align-self: stretch; }
+  .panel .rail button { flex: 1 1 0; justify-content: center; min-width: 0; }
+}
+
+/* move pills: colour change on hover only (tinted by the move's grade when it has one) */
+.tchip { transition: background .15s, color .15s; }
+.tchip:not(.cur):hover { background: color-mix(in srgb, var(--c, var(--blue)) 20%, var(--surface-2)); color: var(--c, var(--blue)); }
+
+/* =====================================================================
+   Even spacing: one 16px rhythm for every gap and padding on desktop,
+   equal-height bars, and the board card padded the same on every side.
+   ===================================================================== */
+:root { --gap: 16px; --mat-h: 26px; }
+@media (min-width: 981px) {
+  .top { padding: 12px 32px; gap: var(--gap); }
+  .layout { padding: 4px 32px var(--gap); column-gap: var(--gap); row-gap: var(--gap); }
+  .panel { gap: var(--gap); }
+  .pane:not([hidden]) { gap: var(--gap); }
+  .panel .rail, .subnav { padding: 5px; gap: 4px; }
+  .panel .rail button, .subnav button { height: 40px; padding-top: 0; padding-bottom: 0; display: flex; align-items: center; justify-content: center; }
+}
+.board-card { padding: var(--gap); }
+.board-wrap { column-gap: 12px; }
+.evalbar { margin: calc(var(--mat-h) + 8px) 0; }
+.board-stack { display: flex; flex-direction: column; gap: 8px; }
+.under { margin-top: var(--gap); padding: 0; }
+/* the strips above and below the board name each side, so the space reads as a player bar, not a gap */
+.mat { gap: 10px; }
+.mat-who { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; color: var(--ink-soft); white-space: nowrap; }
+.mat-who i { width: 12px; height: 12px; border-radius: 4px; box-shadow: 0 0 0 1.5px var(--border-strong); }
+.mat-who.w i { background: #f6f4ef; } .mat-who.b i { background: #3b4366; }
+
+/* brighter accents in the light theme too, and more air under the header */
+:root:not([data-theme="dark"]) {
+  --blue: #3b6fd4; --sage: #2a9a5f; --rose: #cc3f6e; --amber: #b57a0c; --violet: #7a56d0;
+  --accent-soft: rgba(59, 111, 212, .11); --accent-line: rgba(59, 111, 212, .42);
+  --blue-soft: rgba(59, 111, 212, .11); --blue-line: rgba(59, 111, 212, .42);
+  --sage-soft: rgba(42, 154, 95, .11); --sage-line: rgba(42, 154, 95, .42);
+  --rose-soft: rgba(204, 63, 110, .10); --rose-line: rgba(204, 63, 110, .42);
+  --amber-soft: rgba(181, 122, 12, .11); --amber-line: rgba(181, 122, 12, .42);
+  --violet-soft: rgba(122, 86, 208, .11); --violet-line: rgba(122, 86, 208, .42);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-theme="dark"]) {
+    --blue: #9cc0ff; --sage: #7ee2a8; --rose: #ff9ebd; --amber: #ffd070; --violet: #c6aeff;
+    --accent-soft: rgba(156, 192, 255, .18); --accent-line: rgba(156, 192, 255, .55);
+    --blue-soft: rgba(156, 192, 255, .18); --blue-line: rgba(156, 192, 255, .55);
+    --sage-soft: rgba(126, 226, 168, .16); --sage-line: rgba(126, 226, 168, .55);
+    --rose-soft: rgba(255, 158, 189, .17); --rose-line: rgba(255, 158, 189, .55);
+    --amber-soft: rgba(255, 208, 112, .16); --amber-line: rgba(255, 208, 112, .55);
+    --violet-soft: rgba(198, 174, 255, .18); --violet-line: rgba(198, 174, 255, .55);
+  }
+}
+@media (min-width: 981px) {
+  .top { padding: 14px 32px; }
+  .layout { padding-top: 14px; }
+}
+
+/* captured pieces sit on a light, board-coloured chip so both colours stay visible in either theme */
+.mat-pcs { background: color-mix(in srgb, var(--sq-l) 80%, transparent); }
+
+/* =====================================================================
+   Fixed 50/50 desktop layout: same board and panel size in every mode.
+   Player bars (name, captures, clock) sit above and below the board.
+   ===================================================================== */
+.pbar { display: flex; align-items: center; gap: 10px; height: var(--mat-h); min-width: 0; }
+.pbar .mat { flex: 1; min-width: 0; height: 100%; }
+.pbar .player { height: 100%; padding: 0; gap: 8px; flex: none; }
+.pbar .player .chip, .pbar .player b, .pbar .player .sub { display: none; }
+.pbar .player .clock { margin: 0; min-width: 72px; padding: 2px 10px; font: 700 15px/1.3 var(--mono); border: 0; box-shadow: 0 0 0 1px var(--ring); }
+.pbar .player .think { margin: 0; }
+.pbar .player.active .clock:not(.run):not(.low) { box-shadow: 0 0 0 1px var(--accent-line); color: var(--accent); }
+.side-players { display: none !important; }
+@media (min-width: 981px) {
+  .layout, .layout.below { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); grid-template-areas: "board panel"; }
+  .board-col { height: 100%; min-height: 0; }
+  .board-card { width: 100%; max-width: none; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .board-card > .board-wrap, .board-card > .under, .board-card > .palette { width: calc(var(--board) + 24px); max-width: 100%; }
+  .board-wrap { column-gap: 12px; }
+  .evalbar { width: 12px; }
+  .evalbar.off, .pref-noeval .evalbar { display: block; visibility: hidden; }
+}
+@media (min-width: 981px) {
+  .panel .rail button span { display: inline; }
+}
+@media (min-width: 981px) and (max-width: 1180px) {
+  .panel .rail button { gap: 5px; padding: 0 4px; font-size: 10px; letter-spacing: .04em; }
+  .panel .rail .ic { width: 15px; height: 15px; }
+}
+@media (max-width: 980px) {
+  :root { --gap: 12px; }
+  .top { padding: 10px 12px; }
+  .layout { padding: 4px 12px 24px; gap: var(--gap); }
+  .panel { gap: var(--gap); }
+  .board-card { padding: 14px; }
+}
+
+/* board card: the board sits dead centre (the eval bar's slot is mirrored on the right), the strips and
+   controls line up with the board's edges, and vertical spacing is tight so the board gets the room */
+:root { --mat-h: 24px; }
+.board-stack { gap: 6px; }
+.evalbar { margin: calc(var(--mat-h) + 6px) 0; }
+.mat { padding-left: 3px; }
+@media (min-width: 981px) {
+  .layout { padding-top: 10px; }
+  .board-wrap { padding-right: 24px; }
+  .board-card > .board-wrap { width: calc(var(--board) + 48px); }
+  .board-card > .under, .board-card > .palette { width: var(--board); }
+  .under { margin-top: 12px; }
+}
+@media (min-width: 981px) {
+  .board-col { align-self: start; height: auto; }
+  .board-card { height: auto; max-height: 100%; }
+  .evalbar { width: 10px; }
+  .board-wrap { column-gap: 8px; padding-right: 18px; }
+  .board-card > .board-wrap { width: calc(var(--board) + 36px); }
+  .evalbar span { font-size: 8px; }
+}
+
+/* soft frame around the board: an inset mat of the panel tone, a hairline edge and a gentle drop shadow */
+.board-stack { gap: 14px; }
+.evalbar { margin: calc(var(--mat-h) + 14px) 0; }
+.board { border-radius: 10px; box-shadow: 0 0 0 7px var(--surface-2), 0 0 0 8px var(--border-strong), 0 22px 44px -22px rgba(8, 10, 28, .5); }
+:root[data-theme="dark"] .board { box-shadow: 0 0 0 7px var(--surface-2), 0 0 0 8px var(--border-strong), 0 24px 46px -20px rgba(0, 0, 0, .75); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .board { box-shadow: 0 0 0 7px var(--surface-2), 0 0 0 8px var(--border-strong), 0 24px 46px -20px rgba(0, 0, 0, .75); } }

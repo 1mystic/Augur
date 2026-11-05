@@ -21,7 +21,7 @@
 
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); gap: 16px; }
 .gcard { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 18px; padding: 16px; border-radius: var(--r); background: var(--surface); box-shadow: 0 0 0 1px var(--border); transition: transform .3s var(--ease), box-shadow .3s; }
-.gcard:hover { transform: translateY(-4px); box-shadow: 0 0 0 1px var(--c), 0 22px 36px -24px rgba(10, 12, 30, .45); }
+.gcard:hover { box-shadow: 0 0 0 1px var(--c), 0 22px 36px -24px rgba(10, 12, 30, .45); }
 .thumb { position: relative; width: 132px; aspect-ratio: 1; border-radius: 10px; overflow: hidden; align-self: start; background-color: var(--sq-d);
   background-image: conic-gradient(var(--sq-l) 25%, var(--sq-d) 0 50%, var(--sq-l) 0 75%, var(--sq-d) 0); background-size: 25% 25%; }
 .thumb img { position: absolute; width: 12.5%; height: 12.5%; left: 0; top: 0; }

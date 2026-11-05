@@ -48,12 +48,23 @@ export class Board {
       const key = (r === 7 ? sq[0] : '') + '|' + (c === 0 ? sq[1] : '');
       if (d._k !== key) { d._k = key; d.innerHTML = (r === 7 ? `<span class="cf">${sq[0]}</span>` : '') + (c === 0 ? `<span class="cr">${sq[1]}</span>` : ''); }
     });
+    this.el.classList.toggle('is-dragging', !!(this.drag && this.drag.moved));
     this.pcEl.innerHTML = '';
+    // slide the piece that just moved (not after a drag-drop: it is already under the cursor)
+    const lm = s.lastMove, key = lm ? lm.from + lm.to + Object.keys(s.pieces).length : '';
+    const slide = lm && key !== this._lmKey && !this._dropped ? lm : null;
+    this._lmKey = key; this._dropped = false;
     for (const [sq, p] of Object.entries(s.pieces)) {
       const [c, r] = this._xy(sq), img = document.createElement('img');
       img.src = pieceSrc(p); img.draggable = false; img.className = 'pc';
-      img.style.transform = `translate(${c * 100}%, ${r * 100}%)`; img.dataset.sq = sq;
+      img.style.left = c * 12.5 + '%'; img.style.top = r * 12.5 + '%'; img.dataset.sq = sq;
+      if (slide && sq === slide.to && slide.from !== slide.to) {
+        const [c0, r0] = this._xy(slide.from);
+        img.style.transform = `translate(${(c0 - c) * 100}%, ${(r0 - r) * 100}%)`; img.classList.add('sliding');
+        requestAnimationFrame(() => requestAnimationFrame(() => { img.style.transform = ''; setTimeout(() => img.classList.remove('sliding'), 260); }));
+      }
       if (this.drag && this.drag.sq === sq && this.drag.moved) img.classList.add('ghost');
+      else if (this.sel === sq) img.classList.add('lift');
       this.pcEl.appendChild(img);
     }
     if (this.drag && this.drag.moved) {
@@ -103,7 +114,7 @@ export class Board {
     const to = this._sqAt(e);
     if (d.moved) {
       if (this.state.edit) { this.h.onEdit(d.sq, 'move', to); }
-      else if (to && to !== d.sq) this._try(d.sq, to);
+      else if (to && to !== d.sq) { this._dropped = true; this._try(d.sq, to); }
     }
     this.render();
   }

@@ -88,7 +88,7 @@ function move(from, to) {
 }
 function mark(sq) {
   lastEl.style.transform = pos(sq); lastEl.style.opacity = 1;
-  ringEl.style.transform = pos(sq); ringEl.classList.remove('on'); void ringEl.offsetWidth; ringEl.classList.add('on');
+  ringEl.style.left = FILES.indexOf(sq[0]) * 12.5 + '%'; ringEl.style.top = (8 - +sq[1]) * 12.5 + '%'; ringEl.classList.remove('on'); void ringEl.offsetWidth; ringEl.classList.add('on');
 }
 function play(i) {
   const s = GAME[i]; move(...s.m); if (s.extra) move(...s.extra); mark(s.m[1]);

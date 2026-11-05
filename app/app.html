@@ -6,7 +6,7 @@
   <title>Augur | Chess Scanner, Bot, Tutor and Game Review</title>
   <meta name="description" content="Paste a chessboard screenshot, continue the game move by move, ask Stockfish for the top 3 moves, or play against a bot. Runs fully offline in your browser." />
   <meta name="theme-color" content="#f6f7fb" media="(prefers-color-scheme: light)" />
-  <meta name="theme-color" content="#14161f" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#1b1c20" media="(prefers-color-scheme: dark)" />
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="icon" href="./icon.svg" type="image/svg+xml" />
   <link rel="icon" href="./favicon-32.png" type="image/png" sizes="32x32" />
@@ -76,13 +76,9 @@
         <div class="board-wrap">
           <div class="evalbar" id="evalbar" title="Evaluation"><div class="fill"></div><span id="evaltext">0.0</span></div>
           <div class="board-stack">
-            <div class="mat" id="mat-top"></div>
+            <div class="pbar"><div class="mat" id="mat-top"></div><div class="player" id="pl-top"><i class="chip"></i><b></b><span class="sub"></span><span class="think hidden"><u></u><u></u><u></u></span><span class="clock hidden">0:00</span></div></div>
             <div id="board"></div>
-            <div class="mat" id="mat-bot"></div>
-          </div>
-          <div class="side-players">
-            <div class="player" id="pl-top"><i class="chip"></i><b></b><span class="sub"></span><span class="think hidden"><u></u><u></u><u></u></span><span class="clock hidden">0:00</span></div>
-            <div class="player" id="pl-bot"><i class="chip"></i><b></b><span class="sub"></span><span class="think hidden"><u></u><u></u><u></u></span><span class="clock hidden">0:00</span></div>
+            <div class="pbar"><div class="mat" id="mat-bot"></div><div class="player" id="pl-bot"><i class="chip"></i><b></b><span class="sub"></span><span class="think hidden"><u></u><u></u><u></u></span><span class="clock hidden">0:00</span></div></div>
           </div>
         </div>
         <div class="under">
@@ -280,6 +276,7 @@
         <div class="row"><div class="lbl-col"><span class="lbl">Legal move dots</span></div><label class="switch"><input type="checkbox" id="set-dots" aria-label="Show legal moves" /><span></span></label></div>
         <div class="row"><div class="lbl-col"><span class="lbl">Evaluation bar</span></div><label class="switch"><input type="checkbox" id="set-evalbar" aria-label="Show evaluation bar" /><span></span></label></div>
         <div class="row"><div class="lbl-col"><span class="lbl">Piece animation</span></div><label class="switch"><input type="checkbox" id="set-anim" aria-label="Animate pieces" /><span></span></label></div>
+        <div class="row"><div class="lbl-col"><span class="lbl">Move sounds</span><span class="muted small">A soft click on moves and captures</span></div><label class="switch"><input type="checkbox" id="set-sound" aria-label="Move sounds" /><span></span></label></div>
         <div class="row"><div class="lbl-col"><span class="lbl">Always promote to queen</span><span class="muted small">Skip the promotion picker</span></div><label class="switch"><input type="checkbox" id="set-autoq" aria-label="Auto queen" /><span></span></label></div>
       </section>
       <section class="set-sec">
