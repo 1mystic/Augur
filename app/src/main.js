@@ -56,6 +56,7 @@ const C = { w: 0, b: 0, running: null, last: 0, flag: null, why: null };
 /** Message for a game that ended off the board (C.flag = the side that lost): a flagged clock or a resignation. */
 const offBoardMsg = () => {
   const loser = C.flag;
+  if (C.why === 'other') return vsBot() ? (loser === S.bot.human ? 'The bot won this game' : 'You won this game') : `${loser === 'w' ? 'Black' : 'White'} won this game`;
   if (vsBot()) return loser === S.bot.human ? (C.why === 'resign' ? 'You resigned, the bot wins' : 'Time out, the bot wins') : (C.why === 'resign' ? 'The bot resigned, you win!' : 'Time out, you win!');
   return C.why === 'resign' ? `${loser === 'w' ? 'White' : 'Black'} resigned, ${loser === 'w' ? 'Black' : 'White'} wins` : `Time out, ${loser === 'w' ? 'Black' : 'White'} wins`;
 };
@@ -112,7 +113,7 @@ function rebuildBase({ keepHistory = false } = {}) {
   const err = checkPosition(S.base);
   S.valid = !err;
   $('#warn').textContent = err || ''; $('#warn').classList.toggle('hidden', !err);
-  if (!keepHistory) { S.moves = []; S.ply = 0; T.entries = []; T.gen++; clockReset(); S.gameId = null; S.gameCreated = null; S.recMode = null; }
+  if (!keepHistory) { S.moves = []; S.ply = 0; T.entries = []; T.gen++; clockReset(); S.gameId = null; S.gameCreated = null; S.recMode = null; S.origin = null; S.players = null; }
   S.lines = [];
   refresh();
   if (S.valid && autoOn() && !S.edit) analyse();
@@ -237,11 +238,19 @@ function renderMaterial(pieces) {
 }
 function setSeg(sel, v) { document.querySelectorAll(sel + ' button').forEach(b => b.classList.toggle('on', b.dataset.v === v)); }
 
+/** Names for the Moves tab header: PGN/review headers, then a saved game's players, then the bot pairing. */
+function playerNames() {
+  const nm = v => (v && v !== '?' && v !== 'White' && v !== 'Black' ? v : '');
+  if (S.mode === 'review' && R.headers) return { w: nm(R.headers.White), b: nm(R.headers.Black) };
+  if (vsBot()) { const bot = `Bot · ${LEVELS[S.bot.level].label}`; return S.bot.human === 'w' ? { w: 'You', b: bot } : { w: bot, b: 'You' }; }
+  return { w: nm(S.players?.w), b: nm(S.players?.b) };
+}
 function renderMoves() {
   const el = $('#movelist');
   if (!S.moves.length) { el.innerHTML = '<span class="empty">No moves yet.</span>'; return; }
-  const startBlack = S.base.split(' ')[1] === 'b';
-  let html = '', n = 1, i = 0;
+  const startBlack = S.base.split(' ')[1] === 'b', names = playerNames();
+  const head = side => `<span class="mh ${side}"><i></i><b>${side === 'w' ? 'White' : 'Black'}</b>${names[side] ? `<small>${esc(names[side])}</small>` : ''}</span>`;
+  let html = `<span class="mh-n"></span>${head('w')}${head('b')}`, n = 1, i = 0;
   if (startBlack) { html += `<span class="n">${n}.</span><span class="m muted">…</span>`; }
   for (; i < S.moves.length; i++) {
     const isWhite = startBlack ? i % 2 === 1 : i % 2 === 0;
@@ -501,6 +510,7 @@ function renderTimeline() {
 function setMode(m) {
   if (m === S.mode) return;
   S.mode = m; store.set('mode', m);
+  detachGame();
   S.lines = []; stopEngine();
   if (m === 'bot' || m === 'tutor') { S.orient = S.bot.human; warmBot(); }
   clockReset();
@@ -546,6 +556,11 @@ async function resetAll() {
   resetState({ settings: true }); toast('Reset to defaults');
 }
 // ---------- game history (IndexedDB, this browser only) ----------
+// S.gameId is the record being written. S.origin is the saved game that was opened from history:
+// it is only ever extended by continuing it in its own mode, or given a review of the same moves.
+// Anything else (another mode, a branch from an earlier move, a different game) becomes a new record.
+function detachGame() { S.gameId = null; S.gameCreated = null; S.recMode = null; lastSig = ''; }
+const sansOfMoves = moves => moves.map(m => m.san).join(' ');
 let saveTimer = null, lastSig = '';
 function scheduleSave() { if (!P.history) return; clearTimeout(saveTimer); saveTimer = setTimeout(persistGame, 700); }
 /** Autosave the current game. Reviews save the reviewed game (not your side line) once the analysis is done. */
@@ -556,6 +571,13 @@ async function persistGame() {
   const moves = review && R.mainMoves ? R.mainMoves : S.moves;
   if (moves.length < 2) return;
   const last = moves[moves.length - 1].fen, flag = review ? null : C.flag;
+  const sans = sansOfMoves(moves), o = S.origin;
+  if (o) {
+    const same = sans === o.sans, extends_ = sans.startsWith(o.sans + ' '), own = S.mode === o.mode;
+    if (same && !review && !(own && flag)) return;   // only looking at a saved game (in any mode): never rewrite it
+    if ((same && review) || (own && !review && (same || extends_))) { S.gameId = o.id; S.gameCreated = o.created; S.recMode = o.mode; }
+    else if (S.gameId === o.id) detachGame();   // another mode, a branch or a different game: save it as a new one
+  }
   const sig = [S.gameId, S.mode, moves.length, last, flag, S.bot.level, S.bot.human, review ? Math.round(R.acc.w) : ''].join('|');
   if (sig === lastSig) return;
   S.gameId ??= newId(); S.gameCreated ??= Date.now(); S.recMode ??= S.mode;
@@ -567,12 +589,15 @@ async function persistGame() {
     result, white: hd.White && hd.White !== '?' ? hd.White : names.w, black: hd.Black && hd.Black !== '?' ? hd.Black : names.b, opening: hd.Opening || openingOf(S.base, moves) || null, event: hd.Event || null,
     headers: Object.fromEntries(['Event', 'Site', 'Date', 'Round', 'WhiteElo', 'BlackElo', 'ECO', 'Opening', 'TimeControl'].filter(k => hd[k] && hd[k] !== '?').map(k => [k, hd[k]])),
     settings: S.recMode === 'bot' || S.recMode === 'tutor' ? { level: S.bot.level, human: S.bot.human } : null,
-    review: review && R.rows.length ? { w: R.acc.w, b: R.acc.b } : null };
+    review: review && R.rows.length ? { w: R.acc.w, b: R.acc.b } : null,
+    ended: !review && flag ? { flag, why: C.why || 'time' } : null };
   try {
     const old = await getGame(rec.id);
-    if (old?.review && !rec.review) rec.review = old.review;   // keep an earlier review's accuracy
+    const oldSans = old ? sansOfMoves(old.moves) : null;
+    if (old?.review && !rec.review && oldSans === sans) rec.review = old.review;   // keep a review only while it still matches the moves
+    if (old && oldSans === sans && !flag && old.result && old.result !== '*' && rec.result === '*') { rec.result = old.result; rec.ended = old.ended || null; }
     // reviewing a saved game must not rewrite who played it, when, or in which mode
-    if (old && review) Object.assign(rec, { mode: old.mode, source: old.source, created: old.created, white: old.white, black: old.black, event: old.event, opening: old.opening || rec.opening, headers: old.headers || rec.headers, settings: old.settings });
+    if (old && review) Object.assign(rec, { mode: old.mode, source: old.source, created: old.created, white: old.white, black: old.black, event: old.event, opening: old.opening || rec.opening, headers: old.headers || rec.headers, settings: old.settings, ply: old.ply, ended: old.ended || null, ...(old.result && old.result !== '*' ? { result: old.result } : {}) });
     await saveGame(rec); lastSig = sig;
   } catch { /* storage unavailable or full: history is best effort */ }
 }
@@ -589,15 +614,21 @@ async function loadFromHistory(id, review) {
   const mode = review ? 'review' : ['pvp', 'bot', 'tutor'].includes(rec.mode) ? rec.mode : 'analysis';
   if (mode !== S.mode) setMode(mode);
   if (mode === 'bot' || mode === 'tutor') S.orient = S.bot.human;
+  const origin = { id: rec.id, created: rec.created, mode: rec.mode, sans: sansOfMoves(moves) };
   if (review) {
-    S.gameId = rec.id; S.gameCreated = rec.created; S.recMode = rec.mode; lastSig = '';
+    S.gameId = rec.id; S.gameCreated = rec.created; S.recMode = rec.mode; S.origin = origin; lastSig = '';
     try { await startReview({ headers: { ...(rec.headers || {}), White: rec.white, Black: rec.black, Result: rec.result, ...(rec.opening ? { Opening: rec.opening } : {}) }, startFen: rec.startFen, moves, partial: false }); } catch (e) { toast(e.message); }
     return;
   }
   Object.assign(S, { placement: f[0], turn: f[1], castle: f[2] === '-' ? '' : f[2], uncertain: new Set(), edit: false });
   rebuildBase();   // clears the board's own history, clocks and tutor feed
   S.base = rec.startFen; S.moves = moves; S.ply = Math.min(rec.ply || moves.length, moves.length);
-  S.gameId = rec.id; S.gameCreated = rec.created; S.recMode = rec.mode; lastSig = '';
+  S.gameId = rec.id; S.gameCreated = rec.created; S.recMode = rec.mode; S.origin = origin; lastSig = '';
+  S.players = { w: rec.white, b: rec.black };
+  // a game that ended by resignation or on time opens finished (decisive result but no mate on the board)
+  if (['pvp', 'bot', 'tutor'].includes(mode) && S.ply === moves.length && (rec.result === '1-0' || rec.result === '0-1') && !new Chess(moves[moves.length - 1].fen).isGameOver()) {
+    C.flag = rec.ended?.flag || (rec.result === '1-0' ? 'b' : 'w'); C.why = rec.ended?.why || 'other';
+  }
   setTab('main'); refresh();
   toast(`Resumed: ${moves.length} move${moves.length === 1 ? '' : 's'} loaded`);
 }
@@ -1529,7 +1560,7 @@ function importMoves(text) {
   const fullGame = !!fenTag || /\[\w+\s+"/.test(text) || /^\s*1\.(?!\.)/.test(text);
   const toks = tokenise(text);
   if (!toks.length) return null;
-  const snapshot = { placement: S.placement, turn: S.turn, castle: S.castle, moves: S.moves, ply: S.ply, base: S.base };
+  const snapshot = { placement: S.placement, turn: S.turn, castle: S.castle, moves: S.moves, ply: S.ply, base: S.base, gameId: S.gameId, gameCreated: S.gameCreated, recMode: S.recMode, origin: S.origin };
   if (fullGame) {
     if (fenTag) { const p = fenTag[1].split(' '); S.placement = p[0]; S.turn = p[1] || 'w'; S.castle = p[2] && p[2] !== '-' ? p[2] : ''; }
     else { S.placement = START; S.turn = 'w'; S.castle = 'KQkq'; }

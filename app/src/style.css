@@ -1214,3 +1214,24 @@ kbd, .fen-row input, #rv-pgn, .ex-text, #ai textarea { font-family: 'JetBrains M
 #card-edit .palette .txt { width: auto; height: 46px; padding: 0 14px; font: 700 13px var(--ui); background: var(--surface-2); }
 #card-edit .palette .txt:hover { background: var(--accent-soft); color: var(--accent); }
 #card-edit .palette button.on { background: var(--accent-soft); border-color: var(--accent); }
+
+/* moves tab: number | White | Black columns; each move's quality badge sits in its own right-hand slot, so
+   every badge lines up in a column instead of following the move text */
+.movelist { grid-template-columns: 38px minmax(0, 1fr) minmax(0, 1fr); gap: 4px 8px; max-height: 260px; }
+.movelist .n { align-self: center; padding: 0; font-weight: 700; text-align: right; padding-right: 4px; }
+.movelist .m { display: grid; grid-template-columns: minmax(0, 1fr) 22px; align-items: center; column-gap: 8px; padding: 6px 8px 6px 12px; font: 700 15px/1.2 var(--ui); }
+.movelist .m .badge { grid-column: 2; justify-self: end; margin: 0; height: 20px; min-width: 20px; font-size: 11px; padding: 0 4px; vertical-align: baseline; }
+.movelist .m.cur { background: var(--accent); color: var(--accent-ink); }
+.movelist { grid-template-columns: 38px minmax(0, 1fr) minmax(0, 1fr); justify-content: stretch; max-height: 300px; }
+.movelist .m { background: var(--surface-2); border-radius: 10px; }
+.movelist .m:hover { background: color-mix(in srgb, var(--accent) 18%, var(--surface-2)); }
+.movelist .m.cur { background: var(--accent); }
+.movelist .m.future { opacity: .5; }
+
+/* moves tab header: White | Black with player names, pinned while the list scrolls */
+.movelist .mh, .movelist .mh-n { position: sticky; top: 0; z-index: 1; background: var(--surface); padding: 2px 0 8px; }
+.movelist .mh { display: flex; align-items: center; gap: 8px; min-width: 0; padding-left: 12px; }
+.movelist .mh i { width: 12px; height: 12px; border-radius: 4px; flex: none; box-shadow: 0 0 0 1.5px var(--border-strong); }
+.movelist .mh.w i { background: #f6f4ef; } .movelist .mh.b i { background: #3b4366; }
+.movelist .mh b { font: 800 12px/1 var(--ui); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); flex: none; }
+.movelist .mh small { font: 700 14px/1.2 var(--ui); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

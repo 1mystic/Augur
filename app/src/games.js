@@ -103,6 +103,7 @@ export function normalizeRecord(raw) {
       white: str(raw.white) || 'White', black: str(raw.black) || 'Black', opening: str(raw.opening) || openingOf(startFen, moves), event: str(raw.event),
       headers: raw.headers && typeof raw.headers === 'object' ? pick(raw.headers, ['Event', 'Site', 'Date', 'Round', 'WhiteElo', 'BlackElo', 'ECO', 'Opening', 'TimeControl', 'Termination']) : {},
       settings: raw.settings && typeof raw.settings === 'object' ? { level: str(raw.settings.level), human: raw.settings.human === 'b' ? 'b' : 'w' } : null,
-      review: raw.review && typeof raw.review === 'object' && isFinite(raw.review.w) && isFinite(raw.review.b) ? { w: +raw.review.w, b: +raw.review.b } : null };
+      review: raw.review && typeof raw.review === 'object' && isFinite(raw.review.w) && isFinite(raw.review.b) ? { w: +raw.review.w, b: +raw.review.b } : null,
+      ended: raw.ended && (raw.ended.flag === 'w' || raw.ended.flag === 'b') ? { flag: raw.ended.flag, why: raw.ended.why === 'resign' ? 'resign' : raw.ended.why === 'time' ? 'time' : 'other' } : null };
   } catch { return null; }
 }
