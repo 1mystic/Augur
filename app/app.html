@@ -37,6 +37,7 @@
       <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></symbol>
       <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></symbol>
       <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+      <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/></symbol>
       <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
       <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></symbol>
       <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
@@ -87,10 +88,10 @@
             <button class="btn icon" id="btn-back" type="button" title="Back (←)" aria-label="Previous move"><svg class="ic"><use href="#i-left"/></svg></button>
             <button class="btn icon" id="btn-fwd" type="button" title="Forward (→)" aria-label="Next move"><svg class="ic"><use href="#i-right"/></svg></button>
             <button class="btn" id="btn-flip" type="button" title="Flip board (F)"><svg class="ic"><use href="#i-flip"/></svg><span>Flip</span></button>
+            <button class="btn resign hidden" id="btn-resign" type="button" title="Resign the game"><svg class="ic"><use href="#i-flag"/></svg><span>Resign</span></button>
             <button class="btn" id="btn-edit" type="button" title="Edit position (E)"><svg class="ic"><use href="#i-edit"/></svg><span>Edit</span></button>
           </div>
         </div>
-        <div class="palette hidden" id="palette"></div>
       </div>
     </section>
 
@@ -210,6 +211,13 @@
       </section>
 
       <section class="pane" data-pane="position">
+      <div class="card hidden" id="card-edit">
+        <div class="card-h"><h2>Edit position</h2><button class="btn sm" id="btn-edit-done" type="button">Done</button></div>
+        <div class="card-b">
+          <div class="palette" id="palette"></div>
+          <p class="muted small">Pick a piece, then click squares to place it. Right-click a square to clear it, or drag pieces to move them anywhere.</p>
+        </div>
+      </div>
       <div class="card" id="card-scan">
         <div class="card-h"><h2>Scan or set up a position</h2><span class="muted small" id="scan-time"></span></div>
         <div class="card-b">

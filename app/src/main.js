@@ -52,7 +52,13 @@ const SPEEDS = {
   deep: { go: 'depth 18 movetime 4000', early: { min: 13, n: 4, tol: 8 }, label: 'depth 9, refined to 18' },
 };
 // chess clock (Player vs Player and Play the bot): starts after the first move, flag falls = loss on time
-const C = { w: 0, b: 0, running: null, last: 0, flag: null };
+const C = { w: 0, b: 0, running: null, last: 0, flag: null, why: null };
+/** Message for a game that ended off the board (C.flag = the side that lost): a flagged clock or a resignation. */
+const offBoardMsg = () => {
+  const loser = C.flag;
+  if (vsBot()) return loser === S.bot.human ? (C.why === 'resign' ? 'You resigned, the bot wins' : 'Time out, the bot wins') : (C.why === 'resign' ? 'The bot resigned, you win!' : 'Time out, you win!');
+  return C.why === 'resign' ? `${loser === 'w' ? 'White' : 'Black'} resigned, ${loser === 'w' ? 'Black' : 'White'} wins` : `Time out, ${loser === 'w' ? 'Black' : 'White'} wins`;
+};
 const timed = () => (S.mode === 'pvp' || S.mode === 'bot') && S.time > 0;
 const vsBot = () => S.mode === 'bot' || S.mode === 'tutor';
 const LEVELS = {
@@ -175,7 +181,7 @@ function refresh() {
   else if (!S.valid) status = 'Position needs fixing';
   else if (S.mode === 'review') status = reviewLive() ? `Your line · ${turn === 'w' ? 'White' : 'Black'} to move` : S.ply ? `After move ${Math.ceil(S.ply / 2)}${S.ply % 2 ? '' : '…'}` : 'Starting position';
   else if (vsBot()) status = S.ply !== S.moves.length ? 'Viewing an earlier move' : humanCanMove() ? 'Your move' : 'Bot is thinking…';
-  if (C.flag) status = vsBot() ? (C.flag === S.bot.human ? 'Time out, the bot wins' : 'Time out, you win!') : `Time out, ${C.flag === 'w' ? 'Black' : 'White'} wins`;
+  if (C.flag) status = offBoardMsg();
   t.querySelector('span').textContent = status;
   t.classList.toggle('over', (!!g && g.isGameOver()) || !!C.flag);
   if (g && g.isGameOver() && S.moves.length && S.ply === S.moves.length && S.endShown !== fen) { S.endShown = fen; if (g.isCheckmate()) matePop(winner); else toast(status, 4000); }
@@ -191,7 +197,7 @@ function refresh() {
   const bc = fen.split(' ')[2];
   document.querySelectorAll('#castle input').forEach(i => { i.checked = bc.includes(i.value); });
   $('#fen').value = fen;
-  $('#btn-edit').classList.toggle('on', S.edit); $('#palette').classList.toggle('hidden', !S.edit);
+  $('#btn-edit').classList.toggle('on', S.edit); $('#card-edit').classList.toggle('hidden', !S.edit);
   $('#evalbar').classList.toggle('flip', S.orient === 'b');
   renderMoves(); renderTimeline(); renderLines(); renderMaterial(pieces);
   // one step forward (a move played or stepped through) gets a sound; jumps, loads and edits stay silent
@@ -297,8 +303,21 @@ function playLine(i) { const l = shown()[i]; if (l) { const u = l.pv[0]; play(u.
 const suggestLabel = () => (S.mode === 'pvp' ? 'Show hint' : P.lines === 1 ? 'Suggest best move' : `Suggest top ${P.lines}`);
 function stopEngine() { engine?.stop(); const b = $('#btn-suggest'); if (b) { b.disabled = false; $('#suggest-label').textContent = suggestLabel(); } }
 
+// ---------- resign ----------
+/** End the game now: the side to move in PvP, or you against the bot, loses. */
+async function resignGame() {
+  const live = S.moves.length ? S.moves[S.moves.length - 1].fen : null;
+  if (!live || C.flag || new Chess(live).isGameOver()) return;
+  const side = vsBot() ? S.bot.human : live.split(' ')[1], who = vsBot() ? 'You' : side === 'w' ? 'White' : 'Black';
+  if (!(await confirmDialog('Resign this game?', `${who} will lose and the game ends right now.`, 'Resign'))) return;
+  clockCharge(); C.flag = side; C.why = 'resign'; C.running = null;
+  botJob = null; botEngine?.stop(); stopEngine();
+  S.lines = []; S.endShown = null;
+  refresh();
+  toast(offBoardMsg(), 4000);
+}
 // ---------- clock ----------
-function clockReset() { C.w = C.b = S.time * 1000; C.running = null; C.last = performance.now(); C.flag = null; }
+function clockReset() { C.w = C.b = S.time * 1000; C.running = null; C.last = performance.now(); C.flag = null; C.why = null; }
 function clockCharge(now = performance.now()) { if (C.running) C[C.running] = Math.max(0, C[C.running] - (now - C.last)); C.last = now; }
 /** Re-point the running clock at whoever is to move in the live position (call after any change to the game). */
 function clockSync() {
@@ -322,7 +341,7 @@ function clockTick() {
   if (!C.running) return;
   if (clockLeft(C.running) <= 0) {
     C[C.running] = 0; C.flag = C.running; C.running = null; botJob = null; botEngine?.stop(); stopEngine(); refresh();
-    toast(vsBot() ? (C.flag === S.bot.human ? 'Time out, the bot wins' : 'Time out, you win!') : `Time out, ${C.flag === 'w' ? 'Black' : 'White'} wins`, 4000);
+    toast(offBoardMsg(), 4000);
   } else renderClocks();
 }
 setInterval(clockTick, 100);
@@ -389,7 +408,10 @@ function renderMode(turn) {
   document.querySelectorAll('#seg-level button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === S.bot.level)));
   document.querySelectorAll('#seg-human button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === S.bot.human)));
   $('#level-desc').textContent = LEVELS[S.bot.level].desc;
-  $('#btn-takeback').disabled = !S.moves.length || S.ply === 0 || timed();
+  $('#btn-takeback').disabled = !S.moves.length || S.ply === 0 || timed() || !!C.flag;
+  const rs = $('#btn-resign'), live = S.moves.length ? S.moves[S.moves.length - 1].fen : null;
+  rs.classList.toggle('hidden', !['pvp', 'bot', 'tutor'].includes(S.mode));
+  rs.disabled = !live || !!C.flag || S.edit || new Chess(live).isGameOver();
   $('#btn-takeback').title = timed() ? 'Not available in timed games' : '';
   $('#opts-time').classList.toggle('hidden', S.mode !== 'pvp' && S.mode !== 'bot');
   $('#opts-board').classList.toggle('hidden', !['pvp', 'bot', 'tutor'].includes(S.mode));
@@ -1329,7 +1351,7 @@ function buildPalette() {
   const p = $('#palette'), tools = ['K', 'Q', 'R', 'B', 'N', 'P', 'k', 'q', 'r', 'b', 'n', 'p'];
   p.innerHTML = `<button data-t="" class="txt" title="Drag pieces">✋ move</button>` +
     tools.map(t => `<button data-t="${t}"><img src="${pieceSrc(t)}" alt="${t}"></button>`).join('') +
-    `<button data-t="x" class="txt" title="Eraser">⌫ erase</button><button data-a="clear" class="txt">clear</button><button data-a="start" class="txt">start pos</button><button data-a="done" class="txt">✓ done</button>`;
+    `<button data-t="x" class="txt" title="Eraser">⌫ erase</button><button data-a="clear" class="txt">clear</button><button data-a="start" class="txt">start pos</button>`;
   p.addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
     if (b.dataset.a === 'clear') { S.placement = '4k3/8/8/8/8/8/8/4K3'; rebuildBase(); return; }
@@ -1342,7 +1364,8 @@ function buildPalette() {
 function markTool() { document.querySelectorAll('#palette button[data-t]').forEach(b => b.classList.toggle('on', (b.dataset.t || null) === S.tool)); }
 function toggleEdit(on = !S.edit) {
   if (on && S.ply) { S.placement = curFen().split(' ')[0]; S.turn = curFen().split(' ')[1]; }
-  S.edit = on; stopEngine(); rebuildBase();
+  S.edit = on; stopEngine(); if (on) setTab('position'); rebuildBase();
+  if (on && !DESKTOP.matches) requestAnimationFrame(() => $('#card-edit').scrollIntoView({ block: 'start', behavior: 'smooth' }));
 }
 function onEdit(sq, action, to) {
   if (!sq) return;
@@ -1407,6 +1430,7 @@ function init() {
 
   $('#btn-flip').addEventListener('click', () => { S.orient = S.orient === 'w' ? 'b' : 'w'; refresh(); });
   $('#btn-edit').addEventListener('click', () => toggleEdit());
+  $('#btn-edit-done').addEventListener('click', () => toggleEdit(false));
   $('#btn-back').addEventListener('click', () => goto(S.ply - 1));
   $('#btn-fwd').addEventListener('click', () => goto(S.ply + 1));
   $('#btn-reset').addEventListener('click', () => goto(0));
@@ -1429,6 +1453,7 @@ function init() {
   paintTheme();
   wireNewGame();
   $('#btn-takeback').addEventListener('click', takeBack);
+  $('#btn-resign').addEventListener('click', resignGame);
   $('#seg-time').addEventListener('click', async e => {
     const b = e.target.closest('button[data-v]'); if (!b || +b.dataset.v === S.time) return;
     if (S.moves.length && !(await confirmDialog('Change time control?', 'The clocks will restart from the new time.', 'Change'))) return;

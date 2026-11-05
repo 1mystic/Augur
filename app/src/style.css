@@ -1149,3 +1149,68 @@ dialog[open] { animation: rise .3s var(--ease) both; }
 .board { border-radius: 10px; box-shadow: 0 0 0 7px var(--surface-2), 0 0 0 8px var(--border-strong), 0 22px 44px -22px rgba(8, 10, 28, .5); }
 :root[data-theme="dark"] .board { box-shadow: 0 0 0 7px var(--surface-2), 0 0 0 8px var(--border-strong), 0 24px 46px -20px rgba(0, 0, 0, .75); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .board { box-shadow: 0 0 0 7px var(--surface-2), 0 0 0 8px var(--border-strong), 0 24px 46px -20px rgba(0, 0, 0, .75); } }
+
+/* =====================================================================
+   Outfit everywhere: one family, a clear weight scale.
+   900 wordmark · 800 card titles, tabs, buttons, active states · 700 chips, labels, nav · 600 body emphasis · 500 body
+   Monospace stays only where it is data: clocks, eval numbers, key caps, move and PGN fields.
+   ===================================================================== */
+:root { --ui: 'Outfit Variable', 'Outfit', ui-sans-serif, -apple-system, 'Segoe UI', system-ui, sans-serif; }
+body { font-family: var(--ui); font-weight: 500; }
+
+/* titles */
+.brand b { font: 900 25px/1 var(--ui); letter-spacing: .035em; }
+.card h2, .card .kicker, .kicker { font: 800 13px/1.2 var(--ui); letter-spacing: .1em; }
+.lesson-title, .rv-title b { font-family: var(--ui); font-weight: 800; letter-spacing: -.02em; }
+.mate-pop b { font-family: var(--ui); font-weight: 900; }
+.set-sec h4, dialog h3, dialog h2 { font-family: var(--ui); font-weight: 800; letter-spacing: .08em; }
+
+/* nav: mode bar and panel tabs */
+.rail button, .subnav button { font: 700 13px/1 var(--ui); letter-spacing: .07em; }
+.top .rail button, .panel .rail button { font: 700 13px/1 var(--ui); letter-spacing: .07em; }
+.rail button[aria-checked="true"], .subnav button[aria-selected="true"] { font-weight: 800; }
+
+/* buttons */
+.btn { font: 700 13px/1 var(--ui); letter-spacing: .06em; }
+.btn.sm { font-size: 12px; }
+.primary { font: 800 14px/1 var(--ui); letter-spacing: .07em; }
+.status { font: 800 12.5px/1 var(--ui); letter-spacing: .08em; }
+.seg button { font: 700 13px/1 var(--ui); letter-spacing: .02em; }
+.ng-h { font: 800 11px/1 var(--ui); letter-spacing: .12em; }
+.ng .ng-item, .ng .ng-item b { font-family: var(--ui); }
+.ng .ng-item b { font-weight: 800; }
+
+/* chips, pills, small labels */
+.tchip { font: 700 14px/1 var(--ui); letter-spacing: 0; }
+.pill, .mchip { font: 800 12px/1 var(--ui); letter-spacing: .05em; }
+.lesson-stats span { font: 800 11px/1.2 var(--ui); letter-spacing: .08em; }
+.lesson-stats b, .acc .n { font-family: var(--ui); font-weight: 800; }
+.mat-up { font: 800 12.5px/1 var(--ui); }
+.mat-who { font-weight: 700; }
+.rm-best em { font: 800 13px/1 var(--ui); }
+.brand span { font: 700 12px/1 var(--ui); letter-spacing: .08em; }
+.toast { font: 600 14px/1.4 var(--ui); }
+.turn { font-weight: 800; }
+.lbl { font-weight: 700; }
+.player b { font-weight: 800; }
+.callout { font-weight: 500; }
+.tipbox { font: 500 13.5px/1.55 var(--ui); }
+.tipbox b { font-weight: 800; }
+.mate-pop .mp-k, .mate-pop .mp-s { font-family: var(--ui); font-weight: 900; }
+
+/* data keeps its monospace, set deliberately */
+kbd, .fen-row input, #rv-pgn, .ex-text, #ai textarea { font-family: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, Menlo, monospace; }
+#move-in { font: 600 15px var(--ui); letter-spacing: 0; }
+.clock, .pbar .player .clock, .lines li .ev, .evalbar span { font-family: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; }
+
+/* resign: sits with the board controls, turns rose on hover */
+.btn.resign:hover:not(:disabled) { background: var(--rose-soft); color: var(--rose); box-shadow: 0 0 0 1px var(--rose-line); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+
+/* edit palette lives in the Position tab (full width), not under the board where it ran off screen */
+#card-edit { order: -1; flex-basis: 100%; }
+#card-edit .palette { margin: 0 0 12px; padding: 0; background: transparent; box-shadow: none; gap: 6px; }
+#card-edit .palette button { width: 46px; height: 46px; }
+#card-edit .palette .txt { width: auto; height: 46px; padding: 0 14px; font: 700 13px var(--ui); background: var(--surface-2); }
+#card-edit .palette .txt:hover { background: var(--accent-soft); color: var(--accent); }
+#card-edit .palette button.on { background: var(--accent-soft); border-color: var(--accent); }
