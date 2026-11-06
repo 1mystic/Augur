@@ -415,9 +415,11 @@ const botPlayerEl = () => $(S.orient === S.bot.human ? '#pl-top' : '#pl-bot');
 
 // ---------- modes ----------
 function renderMode(turn) {
-  // Review has nothing to set up (no scan, no edit), so its Position tab is hidden
-  $('#subnav [data-tab="position"]').classList.toggle('hidden', S.mode === 'review');
-  if (S.mode === 'review' && S.tab === 'position') setTab('main');
+  // the Position tab (screenshot scan, side to move, castling, FEN) belongs to Analyse; game modes only show it while editing
+  const posTab = S.mode === 'analysis' || (S.edit && S.mode !== 'review');
+  $('#subnav [data-tab="position"]').classList.toggle('hidden', !posTab);
+  if (!posTab && S.tab === 'position') setTab('main');
+  $('#btn-edit').classList.toggle('hidden', S.mode === 'review');   // a review is a fixed game: nothing to edit
   $('#tab-practice').classList.toggle('hidden', S.mode !== 'tutor');
   if (S.mode !== 'tutor' && S.tab === 'practice') setTab('main');
   document.body.classList.toggle('in-lesson', lessonActive());
@@ -1340,6 +1342,7 @@ async function scan(blob) {
   if (!blob) return;
   const drop = $('#drop'); drop.classList.add('scanning');
   const t0 = performance.now();
+  if (S.mode !== 'analysis') { setMode('analysis'); toast(P.history && S.moves.length >= 2 ? 'Reading the screenshot in Analyse. Your game is saved in History.' : 'Reading the screenshot in Analyse'); }   // scanning replaces the board
   try {
     S.img = await createImageBitmap(blob); setTab('position');
     await vision();
@@ -1417,6 +1420,7 @@ function buildPalette() {
 }
 function markTool() { document.querySelectorAll('#palette button[data-t]').forEach(b => b.classList.toggle('on', (b.dataset.t || null) === S.tool)); }
 function toggleEdit(on = !S.edit) {
+  if (on && S.mode === 'review') return;
   endLesson();
   if (on && S.ply) { S.placement = curFen().split(' ')[0]; S.turn = curFen().split(' ')[1]; }
   S.edit = on; stopEngine(); if (on) setTab('position'); rebuildBase();
@@ -1626,7 +1630,7 @@ function init() {
     else if (k === 'ArrowRight') goto(S.ply + 1);
     else if (k === 'f') $('#btn-flip').click();
     else if (k === 'e') toggleEdit();
-    else if (k === 't') $(`#seg-turn button[data-v="${curFen().split(' ')[1] === 'w' ? 'b' : 'w'}"]`).click();
+    else if (k === 't' && (S.mode === 'analysis' || S.edit)) $(`#seg-turn button[data-v="${curFen().split(' ')[1] === 'w' ? 'b' : 'w'}"]`).click();
     else if ('123'.includes(k)) playLine(+k - 1);
     else if (k === 'Escape' && S.edit) toggleEdit(false);
   });
