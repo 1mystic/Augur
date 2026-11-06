@@ -321,11 +321,24 @@ function stopEngine() { engine?.stop(); const b = $('#btn-suggest'); if (b) { b.
 
 // ---------- focus mode ----------
 /** Hide the panel (and the mode bar inside it) so the board takes the centre and grows. */
-function setFocus(on) {
-  document.body.classList.toggle('focus', on); store.set('focus', on);
-  const b = $('#btn-focus'); b.setAttribute('aria-pressed', String(on)); b.querySelector('use').setAttribute('href', on ? '#i-collapse' : '#i-expand');
-  b.title = on ? 'Show the panel (B)' : 'Focus mode: hide the panel, bigger board (B)';
-  scheduleLayout();
+function setFocus(on, animate = true) {
+  const apply = () => {
+    document.body.classList.toggle('focus', on); store.set('focus', on);
+    const b = $('#btn-focus'); b.setAttribute('aria-pressed', String(on)); b.querySelector('use').setAttribute('href', on ? '#i-left' : '#i-right');
+    b.title = b.ariaLabel = on ? 'Show the panel (B)' : 'Hide the panel, bigger board (B)';
+    relayout(); placeToggle();
+  };
+  // smooth: the browser morphs board and panel between the two layouts (instant where unsupported or reduced motion)
+  if (animate && document.startViewTransition && !matchMedia('(prefers-reduced-motion: reduce)').matches && !document.documentElement.classList.contains('lite')) document.startViewTransition(apply);
+  else apply();
+}
+/** Park the arrow on the seam between board and panel (or at the right edge when the panel is hidden). */
+function placeToggle() {
+  const b = $('#btn-focus'); if (!b) return;
+  if (!DESKTOP.matches) { b.style.left = ''; return; }
+  const card = $('.board-card').getBoundingClientRect();
+  b.style.top = Math.round(card.top + card.height / 2) + 'px';
+  b.style.left = document.body.classList.contains('focus') ? '' : Math.round(card.right + (parseFloat(getComputedStyle($('.layout')).columnGap) || 16) / 2) + 'px';
 }
 // ---------- resign ----------
 /** End the game now: the side to move in PvP, or you against the bot, loses. */
@@ -489,7 +502,7 @@ function placeModeBar() {
   if (bar.parentElement === want) return;
   if (DESKTOP.matches) want.insertBefore(bar, $('#subnav')); else want.insertBefore(bar, $('.top-r'));
 }
-function scheduleLayout() { if (!layoutQueued) { layoutQueued = true; requestAnimationFrame(() => { layoutQueued = false; relayout(); }); } }
+function scheduleLayout() { if (!layoutQueued) { layoutQueued = true; requestAnimationFrame(() => { layoutQueued = false; relayout(); placeToggle(); }); } }
 function relayout() {
   placeModeBar();
   const root = document.documentElement.style, layout = $('.layout');
@@ -1598,8 +1611,7 @@ function init() {
   $('#btn-takeback').addEventListener('click', takeBack);
   $('#btn-resign').addEventListener('click', resignGame);
   $('#btn-focus').addEventListener('click', () => setFocus(!document.body.classList.contains('focus')));
-  $('#btn-focus-exit').addEventListener('click', () => setFocus(false));
-  setFocus(store.get('focus', false));
+  setFocus(store.get('focus', false), false);
   $('#seg-time').addEventListener('click', async e => {
     const b = e.target.closest('button[data-v]'); if (!b || +b.dataset.v === S.time) return;
     if (S.moves.length && !(await confirmDialog('Change time control?', 'The clocks will restart from the new time.', 'Change'))) return;

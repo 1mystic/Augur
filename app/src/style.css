@@ -1410,7 +1410,6 @@ body.in-lesson .pbar .mat { visibility: hidden; }
   body.focus .board-card { width: 100%; }
 }
 @media (max-width: 980px) { body.focus .panel { display: none; } }
-#btn-focus .ic { transition: transform .2s; }
 
 /* ---------- lite: software rendering / low-end devices ---------- */
 .lite *, .lite *::before, .lite *::after { animation-duration: 0s !important; animation-iteration-count: 1 !important; transition-duration: 0s !important; }
@@ -1420,10 +1419,17 @@ body.in-lesson .pbar .mat { visibility: hidden; }
 /* primary buttons inside cards: solid too (beats the older .card .primary tint) */
 .card .primary { background: var(--h, var(--accent)); color: var(--on-h); }
 .card .primary:hover:not(:disabled) { background: color-mix(in srgb, var(--h, var(--accent)) 88%, #fff); color: var(--on-h); }
-/* focus mode hides the header too; one floating key brings everything back */
-.focus-exit { display: none; }
-body.focus .top { display: none; }
-body.focus .focus-exit { display: inline-flex; position: fixed; top: 14px; right: 18px; z-index: 40; }
-@media (min-width: 981px) { body.focus .layout { padding-top: 16px; } }
 
-@media (max-width: 640px) { #btn-focus { display: none; } }
+/* panel toggle: a small arrow tab on the seam between board and panel */
+.pane-toggle { position: fixed; z-index: 30; top: 50%; transform: translate(-50%, -50%); width: 22px; height: 56px; padding: 0; border: 0; border-radius: 11px;
+  display: none; place-items: center; background: var(--btn-bg); color: var(--muted); cursor: pointer;
+  box-shadow: 0 2px 0 var(--btn-edge), 0 0 0 1px var(--ring); transition: background .15s, color .15s, width .15s; }
+.pane-toggle:hover { background: var(--accent); color: var(--on-h); width: 26px; }
+.pane-toggle .ic { width: 16px; height: 16px; stroke-width: 2.4; }
+@media (min-width: 981px) { .pane-toggle { display: grid; } }
+body.focus .pane-toggle { left: auto; right: 6px; transform: translateY(-50%); }
+/* smooth collapse: board and panel morph between layouts */
+::view-transition-group(*) { animation-duration: .32s; animation-timing-function: cubic-bezier(.2, .8, .2, 1); }
+.board-card { view-transition-name: board-card; }
+.panel { view-transition-name: side-panel; }
+.pane-toggle { view-transition-name: pane-toggle; }
