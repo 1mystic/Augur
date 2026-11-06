@@ -13,3 +13,8 @@ overleaf/
 .DS_Store
 __pycache__/
 *.pyc
+
+# never commit account secrets
+*recovery-codes*
+*.pem
+.env*

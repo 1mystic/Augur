@@ -14,6 +14,26 @@
   <link rel="apple-touch-icon" href="./icon-192.png" />
   <script>try{var t=localStorage.getItem("augur:theme");if(t)document.documentElement.dataset.theme=JSON.parse(t)}catch(e){}</script>
   <link rel="stylesheet" href="./src/style.css" />
+  <script>
+    // CPU-friendly display for software-rendered or very low-end devices (no GPU, VMs, old laptops, weak phones)
+    (function () {
+      var lite = /[?&]lite\b/.test(location.search), d = navigator.deviceMemory, c = navigator.hardwareConcurrency;
+      try {
+        if (!lite) {
+          var gl = document.createElement('canvas').getContext('webgl');
+          if (!gl) lite = true;
+          else {
+            var x = gl.getExtension('WEBGL_debug_renderer_info');
+            var r = x ? gl.getParameter(x.UNMASKED_RENDERER_WEBGL) : '';
+            if (/swiftshader|llvmpipe|softpipe|software|basic render/i.test(r)) lite = true;
+            var lose = gl.getExtension('WEBGL_lose_context'); if (lose) lose.loseContext();
+          }
+        }
+      } catch (e) { lite = true; }
+      if ((d && d <= 2) || (c && c <= 2)) lite = true;
+      if (lite) document.documentElement.classList.add('lite');
+    })();
+  </script>
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -38,6 +58,8 @@
       <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></symbol>
       <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
       <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/></symbol>
+      <symbol id="i-expand" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
+      <symbol id="i-collapse" viewBox="0 0 24 24"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></symbol>
       <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
       <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></symbol>
       <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
@@ -65,6 +87,7 @@
         <div class="ng-menu hidden" id="ng-menu" role="menu" aria-label="New game"></div>
       </div>
       <button class="btn" id="btn-reset-all" type="button" title="Reset everything to defaults"><svg class="ic"><use href="#i-reset"/></svg><span>Reset</span></button>
+      <button class="btn icon" id="btn-focus" type="button" title="Focus mode: hide the panel, bigger board (B)" aria-label="Focus mode" aria-pressed="false"><svg class="ic"><use href="#i-expand"/></svg></button>
       <a class="btn icon" id="btn-history" href="./history.html" title="Game history: resume, review, import, export" aria-label="Game history"><svg class="ic"><use href="#i-clock"/></svg></a>
       <button class="btn icon" id="btn-theme" type="button" title="Switch light / dark theme" aria-label="Switch theme"><svg class="ic"><use href="#i-moon"/></svg></button>
       <button class="btn icon" id="btn-settings" type="button" title="Settings (AI tutor key)" aria-label="Settings"><svg class="ic"><use href="#i-gear"/></svg></button>
@@ -303,6 +326,7 @@
           <li><span><kbd>←</kbd> <kbd>→</kbd></span>Step through moves</li>
           <li><span><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></span>Play a suggested line</li>
           <li><span><kbd>F</kbd></span>Flip board</li>
+          <li><span><kbd>B</kbd></span>Focus mode: hide the panel, bigger board</li>
           <li><span><kbd>E</kbd></span>Edit position</li>
           <li><span><kbd>T</kbd></span>Switch side to move</li>
         </ul>
@@ -385,5 +409,6 @@
       <button class="btn su-go" type="button" id="su-go">Start now, it will finish in the background</button>
     </div>
   </div>
+  <button class="btn icon focus-exit" id="btn-focus-exit" type="button" title="Show the panel (B)" aria-label="Leave focus mode"><svg class="ic"><use href="#i-collapse"/></svg></button>
 </body>
 </html>

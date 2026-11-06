@@ -13,8 +13,33 @@ fn clipboard_image() -> Result<Response, String> {
     Ok(Response::new(out))
 }
 
+/// Linux low-end / no-GPU fallback. WebKitGTK's DMA-BUF renderer and GPU compositing cause blank or glitchy
+/// windows on machines with weak, missing or unsupported GPUs (VMs, old Intel, some NVIDIA drivers).
+/// Use the CPU-friendly paths unless the user has chosen otherwise. AUGUR_GPU=1 keeps full acceleration.
+#[cfg(target_os = "linux")]
+fn linux_render_fallback() {
+    use std::env;
+    if env::var_os("AUGUR_GPU").is_some() {
+        return;
+    }
+    let has_gpu = std::fs::read_dir("/dev/dri")
+        .map(|d| d.flatten().any(|e| e.file_name().to_string_lossy().starts_with("renderD")))
+        .unwrap_or(false);
+    // SAFETY: called first thing in `run`, before Tauri or WebKit start any threads.
+    unsafe {
+        if env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
+            env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+        }
+        if !has_gpu && env::var_os("WEBKIT_DISABLE_COMPOSITING_MODE").is_none() {
+            env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(target_os = "linux")]
+    linux_render_fallback();
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![clipboard_image])
         .run(tauri::generate_context!())

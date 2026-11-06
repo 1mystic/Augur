@@ -319,6 +319,14 @@ function playLine(i) { const l = shown()[i]; if (l) { const u = l.pv[0]; play(u.
 const suggestLabel = () => (S.mode === 'pvp' ? 'Show hint' : P.lines === 1 ? 'Suggest best move' : `Suggest top ${P.lines}`);
 function stopEngine() { engine?.stop(); const b = $('#btn-suggest'); if (b) { b.disabled = false; $('#suggest-label').textContent = suggestLabel(); } }
 
+// ---------- focus mode ----------
+/** Hide the panel (and the mode bar inside it) so the board takes the centre and grows. */
+function setFocus(on) {
+  document.body.classList.toggle('focus', on); store.set('focus', on);
+  const b = $('#btn-focus'); b.setAttribute('aria-pressed', String(on)); b.querySelector('use').setAttribute('href', on ? '#i-collapse' : '#i-expand');
+  b.title = on ? 'Show the panel (B)' : 'Focus mode: hide the panel, bigger board (B)';
+  scheduleLayout();
+}
 // ---------- resign ----------
 /** End the game now: the side to move in PvP, or you against the bot, loses. */
 async function resignGame() {
@@ -491,7 +499,8 @@ function relayout() {
   layout.style.height = Math.floor(innerHeight - $('.top').offsetHeight) + 'px';
   const cs = getComputedStyle(layout), card = $('.board-card'), ccs = getComputedStyle(card);
   const H = layout.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
-  const colW = (layout.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - (parseFloat(cs.columnGap) || 0)) / 2;
+  const focus = document.body.classList.contains('focus'), inner = layout.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  const colW = focus ? inner : (inner - (parseFloat(cs.columnGap) || 0)) / 2;
   const box = (a, b) => parseFloat(ccs[a]) + parseFloat(ccs[b]);
   const wrapGap = parseFloat(getComputedStyle($('.board-wrap')).columnGap) || 0;
   const extraW = box('paddingLeft', 'paddingRight') + box('borderLeftWidth', 'borderRightWidth') + $('#evalbar').offsetWidth + wrapGap + (parseFloat(getComputedStyle($('.board-wrap')).paddingRight) || 0);
@@ -500,7 +509,7 @@ function relayout() {
     + under.offsetHeight + parseFloat(getComputedStyle(under).marginTop);
   const S = Math.max(240, Math.floor(Math.min(colW - extraW, H - extraH)));
   layout.classList.remove('below');
-  root.setProperty('--board', S + 'px'); root.setProperty('--bw', Math.floor(colW) + 'px');
+  root.setProperty('--board', S + 'px'); root.setProperty('--bw', Math.floor(focus ? Math.min(colW, S + extraW) : colW) + 'px');
 }
 
 /** Panel sub-navbar: one group of cards at a time. */
@@ -1588,6 +1597,9 @@ function init() {
   wireNewGame();
   $('#btn-takeback').addEventListener('click', takeBack);
   $('#btn-resign').addEventListener('click', resignGame);
+  $('#btn-focus').addEventListener('click', () => setFocus(!document.body.classList.contains('focus')));
+  $('#btn-focus-exit').addEventListener('click', () => setFocus(false));
+  setFocus(store.get('focus', false));
   $('#seg-time').addEventListener('click', async e => {
     const b = e.target.closest('button[data-v]'); if (!b || +b.dataset.v === S.time) return;
     if (S.moves.length && !(await confirmDialog('Change time control?', 'The clocks will restart from the new time.', 'Change'))) return;
@@ -1629,6 +1641,7 @@ function init() {
     else if (k === 'ArrowLeft') goto(S.ply - 1);
     else if (k === 'ArrowRight') goto(S.ply + 1);
     else if (k === 'f') $('#btn-flip').click();
+    else if (k === 'b') setFocus(!document.body.classList.contains('focus'));
     else if (k === 'e') toggleEdit();
     else if (k === 't' && (S.mode === 'analysis' || S.edit)) $(`#seg-turn button[data-v="${curFen().split(' ')[1] === 'w' ? 'b' : 'w'}"]`).click();
     else if ('123'.includes(k)) playLine(+k - 1);

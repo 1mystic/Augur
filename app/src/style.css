@@ -1335,3 +1335,95 @@ body.in-lesson .pbar .mat { visibility: hidden; }
 @media (prefers-reduced-motion: reduce) { .su-board i, .su-art img, .su-steps li[data-state="run"] .su-dot { animation: none; } }
 .ls-dl { display: grid; gap: 6px; padding: 12px 14px; border-radius: var(--r); background: var(--violet-soft); }
 .ls-dl small { font: 700 12.5px/1.3 var(--ui); color: var(--violet); font-variant-numeric: tabular-nums; }
+
+/* =====================================================================
+   Design system v2: one size scale, solid "real" buttons (chess.com feel),
+   focus mode (board only), and a CPU-friendly lite mode.
+   ===================================================================== */
+:root {
+  --ctl-sm: 34px; --ctl: 40px; --ctl-lg: 44px;          /* control heights */
+  --r-ctl: 10px; --r-tab: 12px;                         /* control radii */
+  --edge: 3px;                                          /* the button's raised bottom edge */
+  --btn-bg: #e4e7ef; --btn-bg-h: #eceff5; --btn-edge: #c3c8d6; --btn-ink: var(--ink);
+  --on-h: #ffffff;                                      /* text on a solid mode-coloured fill */
+}
+:root[data-theme="dark"] { --btn-bg: #34363e; --btn-bg-h: #3d3f48; --btn-edge: #1f2025; --on-h: #15161a; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --btn-bg: #34363e; --btn-bg-h: #3d3f48; --btn-edge: #1f2025; --on-h: #15161a; } }
+
+/* ---------- buttons: solid face, darker edge below, press moves it down ---------- */
+.btn, .primary, a.btn {
+  min-height: var(--ctl-sm); border-radius: var(--r-ctl); border: 0 !important;
+  background: var(--btn-bg); color: var(--btn-ink);
+  box-shadow: 0 var(--edge) 0 var(--btn-edge) !important;
+  transform: translateY(0); transition: background .12s, transform .08s, box-shadow .08s, color .12s;
+}
+.btn:hover:not(:disabled), a.btn:hover { background: var(--btn-bg-h); color: var(--btn-ink); transform: translateY(0); }
+.btn:active:not(:disabled), a.btn:active, .primary:active:not(:disabled) { transform: translateY(var(--edge)); box-shadow: 0 0 0 var(--btn-edge) !important; transition-duration: .04s; }
+.btn.icon { width: var(--ctl); min-height: var(--ctl); padding: 0; }
+.top-r .btn, .top-r .status { min-height: var(--ctl); height: var(--ctl); }
+.btn.sm { min-height: var(--ctl-sm); padding: 0 13px; }
+.under .btn { min-height: var(--ctl); }
+.btn:disabled { opacity: .5; box-shadow: 0 1px 0 var(--btn-edge) !important; }
+.btn.on, #btn-edit.on, #btn-focus[aria-pressed="true"] { background: var(--accent); color: var(--on-h); box-shadow: 0 var(--edge) 0 color-mix(in srgb, var(--accent) 55%, #000) !important; }
+.btn.resign:hover:not(:disabled) { background: var(--rose); color: var(--on-h); box-shadow: 0 var(--edge) 0 color-mix(in srgb, var(--rose) 55%, #000) !important; }
+
+/* primary actions: solid in the card's own colour */
+.primary { min-height: var(--ctl-lg); background: var(--h, var(--accent)); color: var(--on-h);
+  box-shadow: 0 var(--edge) 0 color-mix(in srgb, var(--h, var(--accent)) 55%, #000) !important; }
+.primary:hover:not(:disabled) { background: color-mix(in srgb, var(--h, var(--accent)) 88%, #fff); color: var(--on-h); }
+.card .primary, .card .primary:hover { color: var(--on-h); }
+.primary kbd { background: color-mix(in srgb, var(--on-h) 18%, transparent); color: inherit; border: 0; }
+
+/* the status pill is information, not a button: flat */
+.status { box-shadow: none !important; border-radius: var(--r-ctl); }
+
+/* ---------- tab bars + segmented controls: same height everywhere, solid active tab ---------- */
+.rail, .subnav, .seg { padding: 5px; gap: 4px; border-radius: var(--r-tab); background: var(--inset); box-shadow: none !important; }
+.panel .rail button, .subnav button, .seg button, .ls-tabs button {
+  min-height: var(--ctl); height: auto; border-radius: var(--r-ctl); border: 0 !important; box-shadow: none !important;
+  transition: background .12s, color .12s, transform .08s;
+}
+.seg button { min-height: var(--ctl-sm); padding: 0 14px; }
+.ls-tabs button { min-height: var(--ctl); }
+.panel .rail button:hover, .subnav button:hover, .seg button:hover { background: var(--btn-bg); color: var(--ink); transform: none; }
+/* active: a raised solid key in the mode's colour (tabs and segments in the accent) */
+.panel .rail button[aria-checked="true"], :is(.top, .panel) .rail button[aria-checked="true"] {
+  background: var(--h); color: var(--on-h) !important; box-shadow: 0 var(--edge) 0 color-mix(in srgb, var(--h) 55%, #000) !important; }
+.panel .rail button[aria-checked="true"] .ic { color: var(--on-h); opacity: 1; }
+.subnav button[aria-selected="true"], .seg button[aria-checked="true"], .seg button.on {
+  background: var(--btn-bg); color: var(--ink); box-shadow: 0 var(--edge) 0 var(--btn-edge) !important; font-weight: 800; }
+.subnav button[aria-selected="true"] { background: var(--h, var(--accent)); color: var(--on-h); box-shadow: 0 var(--edge) 0 color-mix(in srgb, var(--h, var(--accent)) 55%, #000) !important; }
+.panel .rail button:active, .subnav button:active, .seg button:active { transform: translateY(2px); }
+/* inputs line up with controls */
+#move-in, .ls-ask input, .fen-row input { min-height: var(--ctl); }
+
+/* move pills + theme tiles + lesson rows share the soft key look */
+.tchip, .ls-tile, .movelist .m { box-shadow: 0 2px 0 var(--btn-edge) !important; }
+.tchip.cur, .movelist .m.cur { box-shadow: 0 2px 0 color-mix(in srgb, var(--accent) 55%, #000) !important; }
+.tchip:active, .ls-tile:active, .movelist .m:active { transform: translateY(2px); box-shadow: none !important; }
+
+/* ---------- focus mode: panel and mode bar hidden, the board takes the stage ---------- */
+@media (min-width: 981px) {
+  body.focus .layout { grid-template-columns: minmax(0, 1fr) !important; grid-template-areas: "board" !important; }
+  body.focus .panel { display: none; }
+  body.focus .board-col { justify-self: center; width: var(--bw); }
+  body.focus .board-card { width: 100%; }
+}
+@media (max-width: 980px) { body.focus .panel { display: none; } }
+#btn-focus .ic { transition: transform .2s; }
+
+/* ---------- lite: software rendering / low-end devices ---------- */
+.lite *, .lite *::before, .lite *::after { animation-duration: 0s !important; animation-iteration-count: 1 !important; transition-duration: 0s !important; }
+.lite dialog::backdrop, .lite .boot, .lite .promo { backdrop-filter: none !important; }
+.lite .board, .lite .card, .lite .su-card, .lite .pc.floating { box-shadow: 0 0 0 1px var(--border-strong) !important; filter: none !important; }
+.lite .pc { filter: none !important; will-change: auto; }
+/* primary buttons inside cards: solid too (beats the older .card .primary tint) */
+.card .primary { background: var(--h, var(--accent)); color: var(--on-h); }
+.card .primary:hover:not(:disabled) { background: color-mix(in srgb, var(--h, var(--accent)) 88%, #fff); color: var(--on-h); }
+/* focus mode hides the header too; one floating key brings everything back */
+.focus-exit { display: none; }
+body.focus .top { display: none; }
+body.focus .focus-exit { display: inline-flex; position: fixed; top: 14px; right: 18px; z-index: 40; }
+@media (min-width: 981px) { body.focus .layout { padding-top: 16px; } }
+
+@media (max-width: 640px) { #btn-focus { display: none; } }
