@@ -241,3 +241,18 @@ h3 { font-size: 24px; font-weight: 750; letter-spacing: -.02em; }
   .rv, .in-up, .in-pop { opacity: 1 !important; transform: none !important; }
   .line i, .bar em::after { transform: none !important; }
 }
+
+/* ---------- solid raised keys, same as the app (landing header, history page) ---------- */
+:root { --btn-bg: #e4e7ef; --btn-bg-h: #eceff5; --btn-edge: #c3c8d6; --on-h: #ffffff; --edge: 3px; }
+:root[data-theme="dark"] { --btn-bg: #34363e; --btn-bg-h: #3d3f48; --btn-edge: #1f2025; --on-h: #15161a; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --btn-bg: #34363e; --btn-bg-h: #3d3f48; --btn-edge: #1f2025; --on-h: #15161a; } }
+.btn, .icon-btn { border: 0 !important; background: var(--btn-bg); color: var(--ink); box-shadow: 0 var(--edge) 0 var(--btn-edge); transition: background .12s, color .12s, transform .08s, box-shadow .08s; }
+.btn:hover, .btn.ghost:hover { background: var(--btn-bg-h); color: var(--ink); }
+.btn:active, .icon-btn:active { transform: translateY(var(--edge)); box-shadow: 0 0 0 var(--btn-edge); }
+.btn.solid { background: var(--blue); color: var(--on-h); box-shadow: 0 var(--edge) 0 color-mix(in srgb, var(--blue) 55%, #000); }
+.btn.solid:hover { background: color-mix(in srgb, var(--blue) 88%, #fff); color: var(--on-h); }
+.btn.danger:hover { background: var(--rose); color: var(--on-h); box-shadow: 0 var(--edge) 0 color-mix(in srgb, var(--rose) 55%, #000); }
+.icon-btn:hover { color: var(--on-h); }
+.chips button { box-shadow: 0 2px 0 var(--btn-edge); background: var(--btn-bg); }
+.chips button[aria-pressed="true"] { background: var(--c, var(--blue)); color: var(--on-h); box-shadow: 0 2px 0 color-mix(in srgb, var(--c, var(--blue)) 55%, #000); }
+.chips button:active { transform: translateY(2px); box-shadow: none; }
