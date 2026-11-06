@@ -7,3 +7,6 @@ app/node_modules/
 app/dist/
 app/src-tauri/
 .github/
+praeceptor/
+praeceptor-full.zip
+overleaf/

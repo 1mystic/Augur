@@ -98,6 +98,7 @@
     <aside class="panel">
       <div class="subnav" id="subnav" role="tablist" aria-label="Panel">
         <button type="button" role="tab" data-tab="main"><span id="tab-main-label">Engine</span></button>
+        <button type="button" role="tab" data-tab="practice" id="tab-practice" class="hidden">Practice</button>
         <button type="button" role="tab" data-tab="moves">Moves</button>
         <button type="button" role="tab" data-tab="position">Position</button>
       </div>
@@ -207,6 +208,13 @@
         <div class="card-b">
           <div class="movelist" id="movelist"></div>
         </div>
+      </div>
+      </section>
+
+      <section class="pane" data-pane="practice" hidden>
+      <div class="card" id="card-lessons">
+        <div class="card-h"><div class="kick"><span class="kicker">Practice lessons</span></div><span class="ls-badge" title="A 605 KB mixture-of-experts model that runs in this tab">Praeceptor</span></div>
+        <div class="card-b" id="lessons-body"></div>
       </div>
       </section>
 

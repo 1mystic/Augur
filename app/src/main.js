@@ -6,6 +6,7 @@ import { Engine } from './engine.js';
 import { pickMove } from './minibot.js';
 import { detectMotifs } from './motifs.js';
 import { moveSound } from './sound.js';
+import { initLessons, lessonActive, lessonCanMove, lessonMove, lessonStatus, lessonArrows, endLesson, renderLessons } from './lessons.js';
 import { saveGame, getGame, newId } from './store.js';
 import { compact, hydrate, resultOf, openingOf } from './games.js';
 import { detectBoard, fallbackBox } from './vision/detect.js';
@@ -121,6 +122,7 @@ function rebuildBase({ keepHistory = false } = {}) {
 
 let batching = false;
 function play(from, to, promotion, byBot = false) {
+  if (lessonActive()) return lessonMove(from, to, promotion);   // practising a lesson puzzle
   if (S.mode === 'review') {
     if (R.status !== 'done') return false;
     const main = R.mainMoves?.[S.ply];
@@ -146,7 +148,7 @@ function play(from, to, promotion, byBot = false) {
   if (autoOn() || reviewLive()) analyse(); else stopEngine();
   return true;
 }
-function goto(ply) { if (S.mode === 'review') R.follow = false; S.ply = Math.max(0, Math.min(S.moves.length, ply)); S.lines = []; refresh(); if (autoOn() || reviewLive()) analyse(); else if (S.mode === 'review') stopEngine(); }
+function goto(ply) { if (lessonActive()) return; if (S.mode === 'review') R.follow = false; S.ply = Math.max(0, Math.min(S.moves.length, ply)); S.lines = []; refresh(); if (autoOn() || reviewLive()) analyse(); else if (S.mode === 'review') stopEngine(); }
 /** Review exploration: positions up to the branch point are the reviewed game; after it they are the user's own line. */
 const onMain = ply => !R.explore || ply <= R.explore.from;
 const reviewLive = () => S.mode === 'review' && R.status === 'done' && !onMain(S.ply);
@@ -154,7 +156,7 @@ const reviewRowAt = i => (onMain(i + 1) ? R.rows[i] : null);
 const autoOn = () => S.mode === 'analysis' && $('#auto').checked;
 /** Engine lines that the current mode lets the player see. */
 const shown = () => (S.mode === 'analysis' ? S.lines.slice(0, P.lines) : S.mode === 'pvp' && S.hints ? S.lines.slice(0, 1) : []);
-const humanCanMove = () => S.mode === 'review' ? R.status === 'done' && S.valid : C.flag || (timed() && S.ply !== S.moves.length) ? false : !vsBot() || curFen().split(' ')[1] === S.bot.human;
+const humanCanMove = () => lessonActive() ? lessonCanMove() : S.mode === 'review' ? R.status === 'done' && S.valid : C.flag || (timed() && S.ply !== S.moves.length) ? false : !vsBot() || curFen().split(' ')[1] === S.bot.human;
 
 // ---------- rendering ----------
 let board;
@@ -170,7 +172,7 @@ function refresh() {
     pieces, orientation: S.orient, edit: S.edit, lastMove: last, check, uncertain: S.ply === 0 ? S.uncertain : new Set(),
     legal: sq => (g && !S.edit && humanCanMove() ? g.moves({ square: sq, verbose: true }) : []),
     badge: plyBadge(),
-    arrows: S.mode === 'review' ? reviewView() : shown().map((l, i) => ({ from: l.pv[0].slice(0, 2), to: l.pv[0].slice(2, 4), color: RAW[i], width: [15, 11, 8][i], label: String(i + 1) })),
+    arrows: lessonActive() ? lessonArrows() : S.mode === 'review' ? reviewView() : shown().map((l, i) => ({ from: l.pv[0].slice(0, 2), to: l.pv[0].slice(2, 4), color: RAW[i], width: [15, 11, 8][i], label: String(i + 1) })),
   });
   // turn
   const t = $('#turn'); t.classList.toggle('b', turn === 'b');
@@ -183,9 +185,10 @@ function refresh() {
   else if (S.mode === 'review') status = reviewLive() ? `Your line · ${turn === 'w' ? 'White' : 'Black'} to move` : S.ply ? `After move ${Math.ceil(S.ply / 2)}${S.ply % 2 ? '' : '…'}` : 'Starting position';
   else if (vsBot()) status = S.ply !== S.moves.length ? 'Viewing an earlier move' : humanCanMove() ? 'Your move' : 'Bot is thinking…';
   if (C.flag) status = offBoardMsg();
+  if (lessonActive()) status = lessonStatus();
   t.querySelector('span').textContent = status;
   t.classList.toggle('over', (!!g && g.isGameOver()) || !!C.flag);
-  if (g && g.isGameOver() && S.moves.length && S.ply === S.moves.length && S.endShown !== fen) { S.endShown = fen; if (g.isCheckmate()) matePop(winner); else toast(status, 4000); }
+  if (!lessonActive() && g && g.isGameOver() && S.moves.length && S.ply === S.moves.length && S.endShown !== fen) { S.endShown = fen; if (g.isCheckmate()) matePop(winner); else toast(status, 4000); }
   // move box follows the side to move
   const mine = humanCanMove();
   const over = !g || g.isGameOver() || S.edit || !mine, side = turn === 'w' ? 'White' : 'Black';
@@ -359,6 +362,7 @@ setInterval(clockTick, 100);
 let botEngine = null, botJob = null;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 function botTurn() {
+  if (lessonActive()) return null;
   if (!vsBot() || !S.valid || S.edit || S.ply !== S.moves.length) return null;
   const fen = curFen();
   return C.flag || new Chess(fen).isGameOver() || fen.split(' ')[1] === S.bot.human ? null : fen;
@@ -407,6 +411,9 @@ const botPlayerEl = () => $(S.orient === S.bot.human ? '#pl-top' : '#pl-bot');
 
 // ---------- modes ----------
 function renderMode(turn) {
+  $('#tab-practice').classList.toggle('hidden', S.mode !== 'tutor');
+  if (S.mode !== 'tutor' && S.tab === 'practice') setTab('main');
+  document.body.classList.toggle('in-lesson', lessonActive());
   document.body.dataset.mode = S.mode;
   document.body.classList.toggle('timed', timed());
   $('#card-game').classList.toggle('hidden', S.mode === 'analysis' || S.mode === 'review');   // these modes have no settings, only a description   // player labels + clocks beside the board only matter in timed games
@@ -509,6 +516,7 @@ function renderTimeline() {
 }
 function setMode(m) {
   if (m === S.mode) return;
+  endLesson();
   S.mode = m; store.set('mode', m);
   detachGame();
   S.lines = []; stopEngine();
@@ -538,6 +546,7 @@ function clearScan() {
 }
 /** Back to the starting position. `settings` also restores every preference to its default. */
 function resetState({ settings }) {
+  endLesson();
   botJob = null; botEngine?.stop(); stopEngine();
   cancelReview(); R.rows = [];
   clearScan();
@@ -565,6 +574,7 @@ let saveTimer = null, lastSig = '';
 function scheduleSave() { if (!P.history) return; clearTimeout(saveTimer); saveTimer = setTimeout(persistGame, 700); }
 /** Autosave the current game. Reviews save the reviewed game (not your side line) once the analysis is done. */
 async function persistGame() {
+  if (lessonActive()) return;   // lesson puzzles are not games
   if (!P.history || S.edit || !S.valid) return;
   const review = S.mode === 'review';
   if (review && R.status !== 'done') return;
@@ -603,6 +613,7 @@ async function persistGame() {
 }
 /** Open a saved game from the history page (?game=ID, optionally &review=1). */
 async function loadFromHistory(id, review) {
+  endLesson();
   let rec = null; try { rec = await getGame(id); } catch { /* ignore */ }
   history.replaceState(null, '', location.pathname);
   if (!rec) { toast('That game is no longer in your history'); return; }
@@ -1394,6 +1405,7 @@ function buildPalette() {
 }
 function markTool() { document.querySelectorAll('#palette button[data-t]').forEach(b => b.classList.toggle('on', (b.dataset.t || null) === S.tool)); }
 function toggleEdit(on = !S.edit) {
+  endLesson();
   if (on && S.ply) { S.placement = curFen().split(' ')[0]; S.turn = curFen().split(' ')[1]; }
   S.edit = on; stopEngine(); if (on) setTab('position'); rebuildBase();
   if (on && !DESKTOP.matches) requestAnimationFrame(() => $('#card-edit').scrollIntoView({ block: 'start', behavior: 'smooth' }));
@@ -1412,6 +1424,24 @@ function onEdit(sq, action, to) {
 // ---------- wiring ----------
 function init() {
   board = new Board($('#board'), { onMove: play, onEdit, editTool: () => S.tool, autoQueen: () => P.autoq });
+  // practice lessons (Tutor → Practice): the lesson module borrows the board and gives the game back on exit
+  initLessons({
+    esc, toast, refresh: () => refresh(), currentFen: () => curFen(),
+    gameInfo: () => ({ moves: S.moves, base: S.base, human: vsBot() ? S.bot.human : null }),
+    snapshot: () => ({ placement: S.placement, turn: S.turn, castle: S.castle, base: S.base, moves: S.moves, ply: S.ply, orient: S.orient, valid: S.valid, uncertain: S.uncertain, endShown: S.endShown }),
+    restore: snap => { if (snap) Object.assign(S, snap); S.lines = []; soundPly = S.ply; refresh(); },
+    onStart: () => { botJob = null; botEngine?.stop(); stopEngine(); setTab('practice'); refresh(); },
+    showPosition: fen => {
+      const f = fen.split(' ');
+      Object.assign(S, { placement: f[0], turn: f[1], castle: f[2] === '-' ? '' : f[2], base: fen, moves: [], ply: 0, orient: f[1], valid: true, lines: [], uncertain: new Set(), endShown: null });
+      soundPly = 0; refresh();
+    },
+    pushMove: (from, to, promotion) => {
+      const g = new Chess(curFen()), mv = g.move({ from, to, promotion });
+      S.moves = S.moves.slice(0, S.ply); S.moves.push({ san: mv.san, from, to, promotion: mv.promotion, fen: g.fen() }); S.ply++;
+      refresh(); return mv;
+    },
+  });
   buildPalette();
   S.orient = vsBot() ? S.bot.human : store.get('orient', 'w'); $('#auto').checked = store.get('auto', false); $('#think').value = store.get('think', '1500');
   rebuildBase();

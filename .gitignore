@@ -5,3 +5,11 @@ app/src-tauri/gen/
 train/data/
 train/__pycache__/
 .vercel/
+
+# private research (paper, notebook, data, training code); only the shipped model in app/public/lesson is public
+praeceptor/
+praeceptor-full.zip
+overleaf/
+.DS_Store
+__pycache__/
+*.pyc
