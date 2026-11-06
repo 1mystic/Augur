@@ -2,11 +2,12 @@ import '@fontsource-variable/outfit';
 import '@fontsource-variable/jetbrains-mono';
 import { Chess } from 'chess.js';
 import { Board, pieceSrc } from './board.js';
-import { Engine } from './engine.js';
+import { Engine, engineBuild } from './engine.js';
+import { fetchProgress, lowResource } from './net.js';
 import { pickMove } from './minibot.js';
 import { detectMotifs } from './motifs.js';
 import { moveSound } from './sound.js';
-import { initLessons, lessonActive, lessonCanMove, lessonMove, lessonStatus, lessonArrows, endLesson, renderLessons } from './lessons.js';
+import { initLessons, preloadLessons, lessonActive, lessonCanMove, lessonMove, lessonStatus, lessonArrows, endLesson, renderLessons } from './lessons.js';
 import { saveGame, getGame, newId } from './store.js';
 import { compact, hydrate, resultOf, openingOf } from './games.js';
 import { detectBoard, fallbackBox } from './vision/detect.js';
@@ -298,12 +299,15 @@ function setEval(sc) {
 
 // ---------- engine ----------
 let engine = null;
+/** The analysis engine (multi-threaded where possible) is created on first use: Bot, Tutor and Review use their own. */
+const mainEngine = () => engine ??= track(new Engine({ multipv: P.lines }));
 function analyse() {
-  if (!S.valid || !engine || !(S.mode === 'analysis' || (S.mode === 'pvp' && S.hints) || reviewLive())) return;
+  if (!S.valid || !(S.mode === 'analysis' || (S.mode === 'pvp' && S.hints) || reviewLive())) return;
+  mainEngine();
   const g = game(); if (g.isGameOver()) { S.lines = []; renderLines(); return; }
   const fen = curFen(), btn = $('#btn-suggest');
   const label = $('#suggest-label'), idle = suggestLabel();
-  btn.disabled = true; label.textContent = 'Thinking…';
+  btn.disabled = true; label.textContent = engine.isReady ? 'Thinking…' : 'Starting the engine…';
   engine.analyse(fen, S.mode === 'pvp' ? 1000 : +$('#think').value, (lines, done) => {
     if (curFen() !== fen) return;
     S.lines = lines; refresh();
@@ -344,7 +348,7 @@ function renderClocks() {
   document.querySelectorAll('.player').forEach(el => {
     const c = el.querySelector('.clock'), side = el.dataset.side; if (!c) return;
     c.classList.toggle('hidden', !timed() || !side);
-    if (!timed() || !side) return;
+    if (!timed() || !side) { c.classList.remove('run', 'low'); return; }
     const left = clockLeft(side); c.textContent = fmtClock(left);
     c.classList.toggle('run', C.running === side); c.classList.toggle('low', left < 20000 && left < S.time * 1000 && (C.running === side || left === 0));
   });
@@ -411,6 +415,9 @@ const botPlayerEl = () => $(S.orient === S.bot.human ? '#pl-top' : '#pl-bot');
 
 // ---------- modes ----------
 function renderMode(turn) {
+  // Review has nothing to set up (no scan, no edit), so its Position tab is hidden
+  $('#subnav [data-tab="position"]').classList.toggle('hidden', S.mode === 'review');
+  if (S.mode === 'review' && S.tab === 'position') setTab('main');
   $('#tab-practice').classList.toggle('hidden', S.mode !== 'tutor');
   if (S.mode !== 'tutor' && S.tab === 'practice') setTab('main');
   document.body.classList.toggle('in-lesson', lessonActive());
@@ -458,7 +465,7 @@ function renderMode(turn) {
   renderReview();
   $('#move-tip').textContent = bot ? 'Drag a piece or type your move. Take back to try a different line.' : 'Type a move, or drag pieces on the board. Paste a move list or PGN to rebuild a game.';
 }
-function warmBot() { if (botFails >= 2) return; botEngine ??= new Engine({ multipv: 1, single: true }); botEngine.setOptions(LEVELS[S.bot.level].opts); }
+function warmBot() { if (botFails >= 2) return; botEngine ??= track(new Engine({ multipv: 1, single: true })); botEngine.setOptions(LEVELS[S.bot.level].opts); }
 // ---------- adaptive layout ----------
 // Desktop: the board gets the most space that still leaves room for the tabbed panel. Wide screens put the
 // panel beside a full-height board; tall or narrow screens put it in the space below the board.
@@ -497,6 +504,9 @@ function relayout() {
 /** Panel sub-navbar: one group of cards at a time. */
 function setTab(t) {
   S.tab = t; store.set('tab', t);
+  // heavy models load when their tab is first opened, not with the page
+  if (t === 'practice') preloadLessons();
+  if (t === 'position') idle(() => vision().catch(() => {}));
   document.querySelectorAll('#subnav [data-tab]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === t)));
   document.querySelectorAll('.pane').forEach(p => { p.hidden = p.dataset.pane !== t; });
 }
@@ -646,11 +656,11 @@ async function loadFromHistory(id, review) {
 
 // ---------- new game menu (panel sub-navbar) ----------
 const MODE_INFO = {
-  analysis: { label: 'Analyse', icon: 'i-search', fresh: 'New analysis board' },
   pvp: { label: 'Player vs Player', icon: 'i-users', fresh: 'New two-player game' },
   bot: { label: 'Play the bot', icon: 'i-bot', fresh: 'New game vs the bot' },
   tutor: { label: 'Tutor lesson', icon: 'i-teacher', fresh: 'New tutor lesson' },
   review: { label: 'Game review', icon: 'i-chart', fresh: 'New game review' },
+  analysis: { label: 'Analyse', icon: 'i-search', fresh: 'New analysis board' },
 };
 const item = (m, text, sub) => `<button type="button" role="menuitem" data-new="${m}" class="ng-item" data-v="${m}"><svg class="ic"><use href="#${MODE_INFO[m].icon}"/></svg><span><b>${text}</b>${sub ? `<small>${sub}</small>` : ''}</span></button>`;
 function renderNewMenu() {
@@ -1324,13 +1334,15 @@ function wireSettings() {
 
 // ---------- vision ----------
 let modelReady = null;
+/** The board reader (≈0.5 MB) loads the first time a screenshot is pasted. */
+const vision = () => modelReady ??= loadModel().catch(e => { modelReady = null; toast('The board reader failed to load'); throw e; });
 async function scan(blob) {
   if (!blob) return;
   const drop = $('#drop'); drop.classList.add('scanning');
   const t0 = performance.now();
   try {
     S.img = await createImageBitmap(blob); setTab('position');
-    await modelReady;
+    await vision();
     S.box = detectBoard(S.img) || fallbackBox(S.img);
     const found = S.box.score > 0;
     await read(true);
@@ -1422,6 +1434,63 @@ function onEdit(sq, action, to) {
 }
 
 // ---------- wiring ----------
+// ---------- loading status + first-run setup ----------
+/** Run when the browser is idle (soon after first paint), so downloads never compete with drawing the page. */
+const idle = fn => ('requestIdleCallback' in window ? window.requestIdleCallback(() => fn(), { timeout: 1500 }) : setTimeout(fn, 300));
+const loads = new Set(); let loadErr = false, setupOpen = false;
+/** Register an engine so the header status shows Loading… until it is ready (or Problem if it fails). */
+function track(eng) {
+  loads.add(eng); paintStatus();
+  eng.ready.then(() => { loads.delete(eng); paintStatus(); }, () => { loads.delete(eng); loadErr = true; paintStatus(); });
+  return eng;
+}
+function paintStatus() {
+  const el = $('#status'); if (!el) return;
+  const state = loads.size ? 'loading' : loadErr ? 'err' : 'ok';
+  el.className = 'status ' + state;
+  el.querySelector('span').textContent = state === 'ok' ? 'Ready' : state === 'err' ? 'Problem' : 'Loading…';
+  const th = engine?.isReady ? ` (${engine.threads} thread${engine.threads > 1 ? 's' : ''})` : '';
+  el.title = state === 'loading' ? 'Starting Stockfish 19 (runs on this device)' : state === 'err' ? 'Stockfish could not start; the bot falls back to a built-in engine' : `Stockfish 19 lite${th} · board reader loads when you paste a screenshot`;
+}
+/** First visit: download the engine this mode needs with a visible progress card; later visits load from cache. */
+async function firstRunSetup() {
+  const need = S.mode === 'analysis' ? 'main' : vsBot() ? 'bot' : null;
+  const start = () => (need === 'main' ? mainEngine() : (warmBot(), botEngine));
+  if (!need) return;
+  if (store.get('setup', false) || lowResource()) {
+    // cached (or a slow / metered connection: wait until it is needed, except the bot, which must answer)
+    if (need === 'bot') start(); else if (!lowResource()) idle(start);
+    return;
+  }
+  const b = engineBuild(need === 'bot'), card = $('#setup');
+  setupOpen = true; card.hidden = false; requestAnimationFrame(() => card.classList.add('on'));
+  $('#su-go').onclick = closeSetup;
+  let ti = 0; tipTimer = setInterval(() => { const t = $('#su-tip'); t.classList.add('swap'); setTimeout(() => { t.textContent = TIPS[++ti % TIPS.length]; t.classList.remove('swap'); }, 250); }, 3200);
+  const step = (k, state, pct, note) => {
+    const li = card.querySelector(`[data-step="${k}"]`); li.dataset.state = state;
+    if (pct !== undefined) li.querySelector('i').style.width = Math.round(pct * 100) + '%';
+    if (note !== undefined) li.querySelector('small').textContent = note;
+  };
+  const mb = n => (n / 1048576).toFixed(1) + ' MB';
+  let ok = true;
+  try {
+    step('dl', 'run', 0, `0 of ${mb(b.bytes)}`);
+    await fetchProgress(b.wasm, (got, tot) => step('dl', 'run', got / tot, `${mb(got)} of ${mb(tot)}`), b.bytes);
+    step('dl', 'done', 1, 'Downloaded');
+    step('boot', 'run', .35, b.threads > 1 ? `Using ${b.threads} threads` : 'Single thread (saves memory)');
+    const eng = start();
+    if (eng) await eng.ready;   // no engine at all (bot fell back after failures): nothing to wait for
+    step('boot', 'done', 1, 'Ready');
+    store.set('setup', true);
+  } catch { ok = false; step('dl', 'err', 1, 'Could not download. It will retry when needed.'); }
+  card.querySelector('.su-title').textContent = ok ? 'All set' : 'Setup will finish later';
+  card.classList.toggle('done', ok);
+  setTimeout(closeSetup, ok ? 900 : 2500);
+}
+const TIPS = ['Tip: paste a screenshot of any board with Ctrl/⌘+V', 'Tip: press Space for the top moves', 'Tip: Tutor → Practice turns your mistakes into puzzles', 'Tip: every game is saved in History, on this device only', 'Tip: ← and → step through the moves'];
+let tipTimer = null;
+function closeSetup() { if (!setupOpen) return; setupOpen = false; clearInterval(tipTimer); const c = $('#setup'); c.classList.remove('on'); setTimeout(() => { c.hidden = true; }, 300); }
+
 function init() {
   board = new Board($('#board'), { onMove: play, onEdit, editTool: () => S.tool, autoQueen: () => P.autoq });
   // practice lessons (Tutor → Practice): the lesson module borrows the board and gives the game back on exit
@@ -1562,23 +1631,9 @@ function init() {
     else if (k === 'Escape' && S.edit) toggleEdit(false);
   });
 
-  // engine + model -> one status indicator
-  const st = { model: 'loading', engine: 'loading', threads: 1 };
-  const paint = () => {
-    const el = $('#status'), all = Object.values({ m: st.model, e: st.engine });
-    const state = all.includes('err') ? 'err' : all.every(v => v === 'ok') ? 'ok' : 'loading';
-    el.className = 'status ' + state;
-    el.querySelector('span').textContent = state === 'ok' ? 'Ready' : state === 'err' ? 'Problem' : 'Loading…';
-    const d = v => ({ ok: 'ready', err: 'failed to load', loading: 'loading…' }[v]);
-    el.title = `Vision model: ${d(st.model)}\nStockfish 19 lite: ${d(st.engine)}${st.engine === 'ok' ? (st.threads > 1 ? ` (${st.threads} threads)` : ' (1 thread)') : ''}`;
-  };
-  paint();
-  try {
-    engine = new Engine({ multipv: P.lines });
-    engine.ready.then(() => { st.engine = 'ok'; st.threads = engine.threads; paint(); }, () => { st.engine = 'err'; paint(); });
-  } catch (e) { st.engine = 'err'; paint(); }
-  if (vsBot()) warmBot();
-  modelReady = loadModel().then(() => { st.model = 'ok'; paint(); }).catch(() => { st.model = 'err'; paint(); toast('Vision model failed to load'); });
+  // engines load on demand (see track()); the first visit gets a setup card with real download progress
+  paintStatus();
+  firstRunSetup();
 
   if ('serviceWorker' in navigator && import.meta.env.PROD) navigator.serviceWorker.register('./sw.js').catch(() => {});
 }

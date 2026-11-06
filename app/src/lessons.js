@@ -4,6 +4,7 @@
 // rating per motif. Model + 16k-puzzle bank: public/lesson/praeceptor-v0.js, loaded on first use (≈2.3 MB gzipped).
 import { Chess } from 'chess.js';
 import { Engine } from './engine.js';
+import { fetchProgress } from './net.js';
 
 export const MOTIFS = {
   fork: ['Fork', 'One piece attacks two targets at once.'],
@@ -49,12 +50,25 @@ function updateElo(motifs, rho, o) {
 }
 
 // ---------- model + engine (lazy) ----------
-let model = null, loading = null;
+let model = null, loading = null, dl = null;   // dl: download progress 0..1 while the model is fetched
+const MODEL_BYTES = 4331618;
+/** Fetch the self-contained module once with progress, then import it from memory (no second request). */
 function loadModel() {
-  loading ??= import(/* @vite-ignore */ new URL('./lesson/praeceptor-v0.js', document.baseURI).href)
-    .then(m => (model = m.default.load()))
-    .catch(e => { loading = null; throw e; });
+  loading ??= (async () => {
+    dl = 0; render();
+    const blob = await fetchProgress(new URL('./lesson/praeceptor-v0.js', document.baseURI).href, (got, tot) => { dl = got / tot; paintDl(); }, MODEL_BYTES, true);
+    const url = URL.createObjectURL(new Blob([blob], { type: 'text/javascript' }));
+    try { const m = await import(/* @vite-ignore */ url); model = m.default.load(); } finally { URL.revokeObjectURL(url); }
+    dl = null; render(); return model;
+  })().catch(e => { loading = null; dl = null; render(); throw e; });
   return loading;
+}
+/** Practice tab opened: start the download so the first lesson is ready sooner. */
+export function preloadLessons() { if (!model) loadModel().catch(() => {}); }
+function paintDl() {
+  const bar = document.querySelector('#ls-dl i'), txt = document.querySelector('#ls-dl small');
+  if (!bar) return;
+  bar.style.width = Math.round((dl || 0) * 100) + '%'; txt.textContent = `Downloading the lesson model · ${Math.round((dl || 0) * 100)}% of ${(MODEL_BYTES / 1048576).toFixed(1)} MB (first time only)`;
 }
 let eng = null;
 const engine = () => (eng && !eng.dead ? eng : (eng = new Engine({ multipv: 2, single: true })));
@@ -266,7 +280,7 @@ function skipPuzzle() {
 }
 function next() { if (L.i + 1 < L.items.length) showPuzzle(L.i + 1); else { L.i = L.items.length; L.done = true; L.msg = 'Lesson complete'; render(); ctx.refresh(); } }
 export function endLesson() {
-  if (!L.on) return;
+  if (!L.on) { if (L.work === 'build') { L.run++; L.work = null; L.busy = ''; render(); } return; }   // still loading: cancel it
   const snap = L.snap; L.run++; Object.assign(L, { work: null, on: false, items: [], i: 0, j: 0, busy: '', msg: '', done: false, snap: null });
   freeEngine(); ctx.restore(snap); render();
 }
@@ -274,10 +288,11 @@ export function endLesson() {
 // ---------- UI ----------
 const pct = x => Math.round(x * 100) + '%';
 function render() {
-  const el = document.querySelector('#lessons-body'); if (!el) return;
+  const el = document.querySelector('#lessons-body'); if (!el || !ctx) return;
   const esc = ctx.esc;
   if (L.on) { el.innerHTML = renderSession(esc); return; }
-  if (L.busy) { el.innerHTML = `<div class="ls-busy"><span class="spin"></span>${esc(L.busy)}</div>`; return; }
+  const dlBar = dl !== null ? `<div class="ls-dl" id="ls-dl"><small></small><div class="ls-prog"><i style="width:${Math.round(dl * 100)}%"></i></div></div>` : '';
+  if (L.busy) { el.innerHTML = dlBar + `<div class="ls-busy"><span class="spin"></span>${esc(L.busy)}</div>`; if (dlBar) paintDl(); return; }
   const tab = b => `<button type="button" role="radio" data-lv="${b}" aria-checked="${L.view === b}">${{ game: 'From my game', ask: 'Ask', themes: 'Themes' }[b]}</button>`;
   let body = '';
   if (L.view === 'game') {
@@ -304,8 +319,9 @@ function render() {
       <div class="ls-grid">${Object.keys(MOTIFS).map(k => `<button type="button" class="ls-tile" data-practise="${k}" data-src="theme" title="${esc(MOTIFS[k][1])}"><b>${esc(nameOf(k))}</b><span>${ratingOf(k)}</span></button>`).join('')}</div>`;
   }
   const base = elo().base;
-  el.innerHTML = `<div class="seg ls-tabs" role="radiogroup" aria-label="Lesson source">${['game', 'ask', 'themes'].map(tab).join('')}</div>${body}
+  el.innerHTML = dlBar + `<div class="seg ls-tabs" role="radiogroup" aria-label="Lesson source">${['game', 'ask', 'themes'].map(tab).join('')}</div>${body}
     <div class="ls-foot"><span class="muted small">Starting rating</span><div class="seg" role="radiogroup" aria-label="Starting rating">${[800, 1200, 1600, 2000].map(v => `<button type="button" role="radio" data-base="${v}" aria-checked="${base === v}">${v}</button>`).join('')}</div></div>`;
+  if (dlBar) paintDl();
   function lessonRow(k, sub, src) {
     return `<div class="ls-row"><div><b>${esc(nameOf(k))}</b><small>${esc(MOTIFS[k]?.[1] || '')}</small><em>${esc(sub)}</em></div><button class="btn sm" type="button" data-practise="${k}" data-src="${src}">Practise</button></div>`;
   }

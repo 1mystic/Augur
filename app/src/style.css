@@ -1292,3 +1292,46 @@ kbd, .fen-row input, #rv-pgn, .ex-text, #ai textarea { font-family: 'JetBrains M
 /* while practising, game-only controls step aside */
 body.in-lesson #btn-resign, body.in-lesson #btn-edit, body.in-lesson #btn-back, body.in-lesson #btn-fwd { display: none; }
 body.in-lesson .pbar .mat { visibility: hidden; }
+
+/* =====================================================================
+   First-run setup card: real download progress for the engine, a gentle
+   animated board, rotating tips; never blocks (Start now closes it).
+   ===================================================================== */
+.setup { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 20px; background: color-mix(in srgb, var(--bg) 55%, transparent); backdrop-filter: blur(6px); opacity: 0; transition: opacity .3s var(--ease); }
+.setup.on { opacity: 1; }
+.setup[hidden] { display: none; }
+.su-card { width: min(440px, 100%); padding: 26px 26px 22px; border-radius: 22px; background: var(--surface); box-shadow: 0 0 0 1px var(--border-strong), 0 40px 80px -30px rgba(0, 0, 0, .6); display: grid; gap: 14px; transform: translateY(14px) scale(.97); transition: transform .4s var(--spring); }
+.setup.on .su-card { transform: none; }
+.su-art { position: relative; width: 112px; height: 112px; margin: 0 auto 4px; display: grid; place-items: center; }
+.su-board { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(4, 1fr); border-radius: 18px; overflow: hidden; transform: rotate(-8deg); }
+.su-board i { background: var(--sq-l); animation: su-wave 2.4s ease-in-out infinite; }
+.su-board i:nth-child(8n+2), .su-board i:nth-child(8n+4), .su-board i:nth-child(8n+5), .su-board i:nth-child(8n+7) { background: var(--sq-d); }
+.su-board i:nth-child(4n+2) { animation-delay: .15s; } .su-board i:nth-child(4n+3) { animation-delay: .3s; } .su-board i:nth-child(4n+4) { animation-delay: .45s; }
+.su-board i:nth-child(n+5) { animation-delay: .2s; } .su-board i:nth-child(n+9) { animation-delay: .4s; } .su-board i:nth-child(n+13) { animation-delay: .6s; }
+@keyframes su-wave { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+.su-art img { position: relative; width: 56px; height: 56px; border-radius: 14px; box-shadow: 0 12px 26px -10px rgba(0, 0, 0, .55); animation: su-float 2.4s ease-in-out infinite; }
+@keyframes su-float { 50% { transform: translateY(-6px); } }
+.su-title { margin: 0; text-align: center; font: 900 24px/1.15 var(--ui); letter-spacing: -.01em; }
+.su-sub { margin: -4px 0 4px; text-align: center; color: var(--muted); font-size: 14px; line-height: 1.5; }
+.su-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.su-steps li { display: grid; grid-template-columns: 22px 1fr; gap: 12px; align-items: start; padding: 12px 14px; border-radius: 14px; background: var(--surface-2); transition: opacity .2s; }
+.su-steps li[data-state="wait"] { opacity: .55; }
+.su-steps li > div { display: grid; gap: 4px; min-width: 0; }
+.su-steps b { font: 800 14.5px/1.2 var(--ui); }
+.su-steps small { color: var(--muted); font: 600 12.5px/1.2 var(--ui); font-variant-numeric: tabular-nums; }
+.su-steps em { display: block; height: 6px; margin-top: 4px; border-radius: 99px; background: var(--inset); overflow: hidden; }
+.su-steps em i { display: block; height: 100%; width: 0; border-radius: 99px; background: var(--blue); transition: width .25s var(--ease); }
+.su-steps li[data-state="done"] em i { background: var(--sage); }
+.su-steps li[data-state="err"] em i { background: var(--rose); }
+.su-dot { width: 22px; height: 22px; margin-top: 1px; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--border-strong); position: relative; }
+.su-steps li[data-state="run"] .su-dot { box-shadow: inset 0 0 0 2.5px var(--blue-soft); border-top: 2.5px solid var(--blue); animation: spin .8s linear infinite; box-sizing: border-box; }
+.su-steps li[data-state="done"] .su-dot { background: var(--sage); box-shadow: none; }
+.su-steps li[data-state="done"] .su-dot::after { content: ""; position: absolute; left: 7px; top: 4px; width: 5px; height: 10px; border: solid var(--surface); border-width: 0 2.5px 2.5px 0; transform: rotate(45deg); }
+.su-steps li[data-state="err"] .su-dot { background: var(--rose); box-shadow: none; }
+.su-tip { margin: 2px 0 0; text-align: center; color: var(--ink-soft); font: 600 13.5px/1.4 var(--ui); min-height: 1.4em; transition: opacity .25s, transform .25s; }
+.su-tip.swap { opacity: 0; transform: translateY(4px); }
+.su-go { width: 100%; white-space: normal; line-height: 1.3; }
+.setup.done .su-title { color: var(--sage); }
+@media (prefers-reduced-motion: reduce) { .su-board i, .su-art img, .su-steps li[data-state="run"] .su-dot { animation: none; } }
+.ls-dl { display: grid; gap: 6px; padding: 12px 14px; border-radius: var(--r); background: var(--violet-soft); }
+.ls-dl small { font: 700 12.5px/1.3 var(--ui); color: var(--violet); font-variant-numeric: tabular-nums; }

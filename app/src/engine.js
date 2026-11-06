@@ -8,11 +8,17 @@ export function threadsSafe() {
   return mem === undefined ? !/iPhone|iPad|iPod/.test(navigator.userAgent) : mem >= 4;
 }
 
+/** Thread count and WASM file an Engine built with these options will use (so the file can be prefetched). */
+export function engineBuild(single = false) {
+  const cores = navigator.hardwareConcurrency || 1;
+  const threads = !single && threadsSafe() && cores > 1 ? Math.min(4, Math.max(2, cores - 1)) : 1;
+  return { threads, wasm: threads > 1 ? './engine/stockfish-19-lite.wasm' : './engine/stockfish-19-lite-single.wasm', bytes: threads > 1 ? 1697617 : 1845971 };
+}
+
 export class Engine {
   constructor({ multipv = 3, single = false, hash = 0 } = {}) {
     // multi-threaded build when the page is cross-origin isolated (native app, dev server, COOP/COEP hosts)
-    const cores = navigator.hardwareConcurrency || 1;
-    this.threads = !single && threadsSafe() && cores > 1 ? Math.min(4, Math.max(2, cores - 1)) : 1;
+    this.threads = engineBuild(single).threads;
     this.multipv = multipv; this.options = {}; this.hash = hash;
     // `ready` rejects if the worker never answers (blocked download, crashed wasm…) so callers can fall back instead of waiting forever
     this.isReady = false; this.dead = false;

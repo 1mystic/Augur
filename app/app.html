@@ -52,11 +52,11 @@
   <header class="top">
     <a class="brand" href="./" title="Augur home"><img src="./icon.svg" alt="" width="30" height="30" /><b>augur</b></a>
     <nav class="rail" id="seg-mode" role="radiogroup" aria-label="Game mode">
-      <button type="button" role="radio" data-v="analysis" title="Analyse: scan, explore, top moves"><svg class="ic"><use href="#i-search"/></svg><span>Analyse</span></button>
       <button type="button" role="radio" data-v="pvp" title="Player vs Player"><svg class="ic"><use href="#i-users"/></svg><span>PvP</span></button>
       <button type="button" role="radio" data-v="bot" title="Play the bot"><svg class="ic"><use href="#i-bot"/></svg><span>Bot</span></button>
       <button type="button" role="radio" data-v="tutor" title="Tutor lesson"><svg class="ic"><use href="#i-teacher"/></svg><span>Tutor</span></button>
       <button type="button" role="radio" data-v="review" title="Game review"><svg class="ic"><use href="#i-chart"/></svg><span>Review</span></button>
+      <button type="button" role="radio" data-v="analysis" title="Analyse: scan, explore, top moves"><svg class="ic"><use href="#i-search"/></svg><span>Analyse</span></button>
     </nav>
     <div class="top-r">
       <span class="status loading" id="status" role="status"><i></i><span>Loading…</span></span>
@@ -372,5 +372,18 @@
   </dialog>
   <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
   <script type="module" src="./src/main.js"></script>
+  <div class="setup" id="setup" hidden role="status" aria-live="polite">
+    <div class="su-card">
+      <div class="su-art" aria-hidden="true"><div class="su-board"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><img src="./icon.svg" alt="" width="56" height="56" /></div>
+      <h3 class="su-title">Setting up Augur</h3>
+      <p class="su-sub">First visit only. Everything runs on your device, so the chess engine downloads once and then works offline.</p>
+      <ul class="su-steps">
+        <li data-step="dl" data-state="wait"><span class="su-dot"></span><div><b>Downloading the chess engine</b><small>Stockfish 19</small><em><i></i></em></div></li>
+        <li data-step="boot" data-state="wait"><span class="su-dot"></span><div><b>Starting it on your device</b><small>Waiting</small><em><i></i></em></div></li>
+      </ul>
+      <p class="su-tip" id="su-tip">Tip: paste a screenshot of any board with Ctrl/⌘+V</p>
+      <button class="btn su-go" type="button" id="su-go">Start now, it will finish in the background</button>
+    </div>
+  </div>
 </body>
 </html>

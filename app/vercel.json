@@ -33,7 +33,7 @@
       ]
     },
     {
-      "source": "/(engine|model|pieces)/(.*)",
+      "source": "/(engine|model|pieces|lesson)/(.*)",
       "headers": [
         {
           "key": "Cache-Control",

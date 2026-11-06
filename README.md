@@ -45,6 +45,16 @@ screenshot ──► board detector ──► 64 tiles ──► tiny CNN (≈40
 
 The site home (`/`) is a standalone landing page in the same slate and pastel style: an animated opening on the hero board, count-up stats, a how-it-works flow, the five game modes, a review preview, a feature bento, download cards for web / macOS / Linux, an FAQ and a final call to action. The app itself lives at `/app` (`app.html`). It is plain HTML, CSS and about 4 KB of JavaScript, shares the app's theme choice, and respects reduced-motion settings. The desktop app opens straight into the app, and old share links that pointed at the site root are forwarded to it.
 
+## Light on weak devices
+
+Nothing heavy loads until a feature needs it. The page itself is about 65 KB of compressed JavaScript and draws in under a second, even on a throttled phone profile.
+
+- **Stockfish** (1.7 MB) starts when you open the app in a mode that uses it: the multi-threaded build for Analyse, the single-thread build for Bot and Tutor (never both). PvP and Review start an engine only when you ask for a hint or a review. Low-memory phones always get the single-thread build.
+- **The board reader** (0.5 MB) loads when you open the Position tab or paste a screenshot.
+- **The lesson model** (4.1 MB) loads when you open Tutor → Practice, with a progress bar, in one request.
+- **First visit:** a setup card shows the engine download and start-up with real progress, and you can close it and start right away. After that everything is cached for offline use and the card does not come back.
+- **Slow or metered connections** (Save-Data, 2G): optional downloads wait until you use the feature.
+
 ## Game history
 
 Every game you play (PvP, bot, tutor, analysis) and every game you review is saved automatically to **IndexedDB in your browser**, so nothing is uploaded and it works offline. Open it from the clock icon in the app header or at `/history`:
