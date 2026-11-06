@@ -1297,11 +1297,11 @@ body.in-lesson .pbar .mat { visibility: hidden; }
    First-run setup card: real download progress for the engine, a gentle
    animated board, rotating tips; never blocks (Start now closes it).
    ===================================================================== */
-.setup { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 20px; background: color-mix(in srgb, var(--bg) 55%, transparent); backdrop-filter: blur(6px); opacity: 0; transition: opacity .3s var(--ease); }
-.setup.on { opacity: 1; }
-.setup[hidden] { display: none; }
+.boot { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 20px; background: color-mix(in srgb, var(--bg) 55%, transparent); backdrop-filter: blur(6px); opacity: 0; transition: opacity .3s var(--ease); }
+.boot.on { opacity: 1; }
+.boot[hidden] { display: none; }
 .su-card { width: min(440px, 100%); padding: 26px 26px 22px; border-radius: 22px; background: var(--surface); box-shadow: 0 0 0 1px var(--border-strong), 0 40px 80px -30px rgba(0, 0, 0, .6); display: grid; gap: 14px; transform: translateY(14px) scale(.97); transition: transform .4s var(--spring); }
-.setup.on .su-card { transform: none; }
+.boot.on .su-card { transform: none; }
 .su-art { position: relative; width: 112px; height: 112px; margin: 0 auto 4px; display: grid; place-items: center; }
 .su-board { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(4, 1fr); border-radius: 18px; overflow: hidden; transform: rotate(-8deg); }
 .su-board i { background: var(--sq-l); animation: su-wave 2.4s ease-in-out infinite; }
@@ -1331,7 +1331,7 @@ body.in-lesson .pbar .mat { visibility: hidden; }
 .su-tip { margin: 2px 0 0; text-align: center; color: var(--ink-soft); font: 600 13.5px/1.4 var(--ui); min-height: 1.4em; transition: opacity .25s, transform .25s; }
 .su-tip.swap { opacity: 0; transform: translateY(4px); }
 .su-go { width: 100%; white-space: normal; line-height: 1.3; }
-.setup.done .su-title { color: var(--sage); }
+.boot.done .su-title { color: var(--sage); }
 @media (prefers-reduced-motion: reduce) { .su-board i, .su-art img, .su-steps li[data-state="run"] .su-dot { animation: none; } }
 .ls-dl { display: grid; gap: 6px; padding: 12px 14px; border-radius: var(--r); background: var(--violet-soft); }
 .ls-dl small { font: 700 12.5px/1.3 var(--ui); color: var(--violet); font-variant-numeric: tabular-nums; }
