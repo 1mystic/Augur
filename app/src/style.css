@@ -1420,14 +1420,17 @@ body.in-lesson .pbar .mat { visibility: hidden; }
 .card .primary { background: var(--h, var(--accent)); color: var(--on-h); }
 .card .primary:hover:not(:disabled) { background: color-mix(in srgb, var(--h, var(--accent)) 88%, #fff); color: var(--on-h); }
 
-/* panel toggle: a small arrow tab on the seam between board and panel */
-.pane-toggle { position: fixed; z-index: 30; top: 50%; transform: translate(-50%, -50%); width: 22px; height: 56px; padding: 0; border: 0; border-radius: 11px;
-  display: none; place-items: center; background: var(--btn-bg); color: var(--muted); cursor: pointer;
-  box-shadow: 0 2px 0 var(--btn-edge), 0 0 0 1px var(--ring); transition: background .15s, color .15s, width .15s; }
-.pane-toggle:hover { background: var(--accent); color: var(--on-h); width: 26px; }
-.pane-toggle .ic { width: 16px; height: 16px; stroke-width: 2.4; }
-@media (min-width: 981px) { .pane-toggle { display: grid; } }
-body.focus .pane-toggle { left: auto; right: 6px; transform: translateY(-50%); }
+/* panel toggle: a highlighted key at the right end of the mode bar (stays there when the panel is hidden) */
+.pane-toggle { position: fixed; z-index: 30; transform: translate(-50%, -50%); width: var(--ctl); height: var(--ctl); padding: 0; border: 0; border-radius: var(--r-ctl);
+  display: none; place-items: center; cursor: pointer; background: var(--accent); color: var(--on-h);
+  box-shadow: 0 var(--edge) 0 color-mix(in srgb, var(--accent) 55%, #000); transition: background .12s, transform .08s, box-shadow .08s; }
+.pane-toggle:hover { background: color-mix(in srgb, var(--accent) 88%, #fff); }
+.pane-toggle:active { transform: translate(-50%, calc(-50% + var(--edge))); box-shadow: 0 0 0 transparent; }
+.pane-toggle .ic { width: 18px; height: 18px; stroke-width: 2.6; }
+@media (min-width: 981px) {
+  .pane-toggle { display: grid; }
+  .panel .rail { padding-right: calc(var(--ctl) + 12px); }   /* room for the toggle at the end of the bar */
+}
 /* smooth collapse: board and panel morph between layouts */
 ::view-transition-group(*) { animation-duration: .32s; animation-timing-function: cubic-bezier(.2, .8, .2, 1); }
 .board-card { view-transition-name: board-card; }

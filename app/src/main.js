@@ -332,13 +332,15 @@ function setFocus(on, animate = true) {
   if (animate && document.startViewTransition && !matchMedia('(prefers-reduced-motion: reduce)').matches && !document.documentElement.classList.contains('lite')) document.startViewTransition(apply);
   else apply();
 }
-/** Park the arrow on the seam between board and panel (or at the right edge when the panel is hidden). */
+/** The arrow sits at the right end of the mode bar; with the panel hidden it stays at the same spot, top right. */
 function placeToggle() {
   const b = $('#btn-focus'); if (!b) return;
-  if (!DESKTOP.matches) { b.style.left = ''; return; }
-  const card = $('.board-card').getBoundingClientRect();
-  b.style.top = Math.round(card.top + card.height / 2) + 'px';
-  b.style.left = document.body.classList.contains('focus') ? '' : Math.round(card.right + (parseFloat(getComputedStyle($('.layout')).columnGap) || 16) / 2) + 'px';
+  if (!DESKTOP.matches) { b.style.top = b.style.left = ''; return; }
+  const rail = $('#seg-mode'), r = rail.getBoundingClientRect(), lay = $('.layout').getBoundingClientRect();
+  const focus = document.body.classList.contains('focus') || !r.width;
+  const top = focus ? lay.top + parseFloat(getComputedStyle($('.layout')).paddingTop) : r.top, h = focus ? 52 : r.height;
+  const right = focus ? lay.right - parseFloat(getComputedStyle($('.layout')).paddingRight) : r.right;
+  b.style.top = Math.round(top + h / 2) + 'px'; b.style.left = Math.round(right - 7 - b.offsetWidth / 2) + 'px';
 }
 // ---------- resign ----------
 /** End the game now: the side to move in PvP, or you against the bot, loses. */
