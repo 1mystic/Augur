@@ -49,29 +49,49 @@ export class Board {
       if (d._k !== key) { d._k = key; d.innerHTML = (r === 7 ? `<span class="cf">${sq[0]}</span>` : '') + (c === 0 ? `<span class="cr">${sq[1]}</span>` : ''); }
     });
     this.el.classList.toggle('is-dragging', !!(this.drag && this.drag.moved));
-    this.pcEl.innerHTML = '';
+    // Pieces are kept as persistent <img> nodes and only patched: rebuilding them on every touch/move made the board
+    // blink on GPU-less / low-end devices (images re-decoded and repainted from scratch each time).
     // slide the piece that just moved (not after a drag-drop: it is already under the cursor)
     const lm = s.lastMove, key = lm ? lm.from + lm.to + Object.keys(s.pieces).length : '';
     const slide = lm && key !== this._lmKey && !this._dropped ? lm : null;
     this._lmKey = key; this._dropped = false;
+    const old = this._pcs || new Map(), next = new Map();
     for (const [sq, p] of Object.entries(s.pieces)) {
-      const [c, r] = this._xy(sq), img = document.createElement('img');
-      img.src = pieceSrc(p); img.draggable = false; img.className = 'pc';
-      img.style.left = c * 12.5 + '%'; img.style.top = r * 12.5 + '%'; img.dataset.sq = sq;
-      if (slide && sq === slide.to && slide.from !== slide.to) {
+      const [c, r] = this._xy(sq), sliding = slide && sq === slide.to && slide.from !== slide.to;
+      let img = old.get(sq);
+      if (img && (img.dataset.p !== p || sliding)) img = null;   // different piece now on this square (or it has to slide in): use a fresh node
+      else old.delete(sq);
+      const fresh = !img;
+      if (fresh) {
+        img = document.createElement('img');
+        img.src = pieceSrc(p); img.draggable = false; img.className = 'pc'; img.dataset.p = p; img.dataset.sq = sq;
+        this.pcEl.appendChild(img);
+      }
+      const L = c * 12.5 + '%', T = r * 12.5 + '%';
+      if (img.style.left !== L) img.style.left = L;
+      if (img.style.top !== T) img.style.top = T;
+      if (sliding) {
         const [c0, r0] = this._xy(slide.from);
         img.style.transform = `translate(${(c0 - c) * 100}%, ${(r0 - r) * 100}%)`; img.classList.add('sliding');
         requestAnimationFrame(() => requestAnimationFrame(() => { img.style.transform = ''; setTimeout(() => img.classList.remove('sliding'), 260); }));
       }
-      if (this.drag && this.drag.sq === sq && this.drag.moved) img.classList.add('ghost');
-      else if (this.sel === sq) img.classList.add('lift');
-      this.pcEl.appendChild(img);
+      img.classList.toggle('ghost', !!(this.drag && this.drag.sq === sq && this.drag.moved));
+      img.classList.toggle('lift', this.sel === sq && !(this.drag && this.drag.sq === sq && this.drag.moved));
+      next.set(sq, img);
     }
+    for (const img of old.values()) img.remove();   // pieces that left / were captured
+    this._pcs = next;
     if (this.drag && this.drag.moved) {
-      const img = document.createElement('img'); img.src = pieceSrc(s.pieces[this.drag.sq]); img.className = 'pc floating';
-      img.style.left = this.drag.x + 'px'; img.style.top = this.drag.y + 'px'; this.pcEl.appendChild(img); this.drag.img = img;
-    }
-    this.arEl.innerHTML = s.arrows.map(a => this._arrow(a)).join('') + this._badge(s.badge);
+      let img = this._float;
+      if (!img || img.dataset.p !== s.pieces[this.drag.sq]) {
+        img?.remove();
+        img = this._float = document.createElement('img'); img.src = pieceSrc(s.pieces[this.drag.sq]); img.className = 'pc floating'; img.dataset.p = s.pieces[this.drag.sq];
+        this.pcEl.appendChild(img);
+      }
+      img.style.left = this.drag.x + 'px'; img.style.top = this.drag.y + 'px'; this.drag.img = img;
+    } else if (this._float) { this._float.remove(); this._float = null; }
+    const ar = s.arrows.map(a => this._arrow(a)).join('') + this._badge(s.badge);
+    if (ar !== this._ar) { this._ar = ar; this.arEl.innerHTML = ar; }
   }
   _badge(bd) {
     if (!bd) return '';

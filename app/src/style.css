@@ -1436,3 +1436,14 @@ body.in-lesson .pbar .mat { visibility: hidden; }
 .board-card { view-transition-name: board-card; }
 .panel { view-transition-name: side-panel; }
 .pane-toggle { view-transition-name: pane-toggle; }
+
+/* Low-end fallback only (the .lite class is set in app.html for GPU-less / low-core / low-memory devices):
+   no hover repaint, no filter or drop-shadow layers on pieces, no looping animation or transitions on the board,
+   so it stays stable instead of blinking on touch or move. Normal devices keep the full styling. */
+.lite .board { contain: layout paint; -webkit-tap-highlight-color: transparent; }
+.lite .pc { backface-visibility: hidden; }
+.lite .board .sq, .lite .board .sq:hover { filter: none !important; transition: none !important; }
+.lite .pc, .lite .pc.lift, .lite .pc.floating { filter: none !important; will-change: auto; transition: none !important; }
+.lite .pc.lift { scale: 1.08; }
+.lite .sq.check::before { animation: none; }
+.lite .sq.dot::after, .lite .sq.cap::after { transition: none; }

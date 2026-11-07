@@ -206,7 +206,7 @@ function refresh() {
   $('#evalbar').classList.toggle('flip', S.orient === 'b');
   renderMoves(); renderTimeline(); renderLines(); renderMaterial(pieces);
   // one step forward (a move played or stepped through) gets a sound; jumps, loads and edits stay silent
-  if (P.sound && last && !S.edit && S.ply === soundPly + 1) moveSound(last.san);
+  if (P.sound && last && !S.edit && S.ply === soundPly + 1 && !(S.mode === 'review' && R.status === 'running')) moveSound(last.san);   // no sounds while a review replays moves rapidly (hangs low-end devices)
   soundPly = S.ply;
   syncBot();
   scheduleLayout();
@@ -1047,10 +1047,10 @@ function renderReview() {
   const i = S.ply - 1, row = reviewRowAt(i), live = reviewLive();
   const parts = row ? templateParts(row) : { text: '', tip: '' };
   const turn = curFen().split(' ')[1], who = turn === 'w' ? 'White' : 'Black', bh = R.status === 'done' && R.showBest ? bestHere() : null;
-  const best = R.status !== 'done' ? '' : `<div class="rm-best"><span>${R.showBest ? (bh ? `★ Best for ${who}: ${bh.pending ? '<span class="dots">thinking…</span>' : `<b>${esc(bh.san)}</b> <em>${esc(bh.score)}</em>`}` : 'No moves: the game is over') : 'Stockfish\'s best move is hidden'}</span>`
+  const best = R.status !== 'done' ? '' : `<div class="rm-best"><span>${R.showBest ? (bh ? `★ Best for ${who}: ${bh.pending ? '<span class="dots">thinking…</span>' : `<b>${esc(bh.san)}</b> <em>${esc(povEval(bh.score))}</em>`}` : 'No moves: the game is over') : 'Stockfish\'s best move is hidden'}</span>`
     + `<button class="btn sm" data-best-toggle type="button">${R.showBest ? 'Hide' : 'Show best'}</button></div>`;
   const custom = live ? { kicker: `Your line · ${who} to move`, title: moveTitle(S.moves[i].san, i, S.base), body: 'You are exploring a move that was not played in this game. Stockfish evaluates every position of your line live; the blue arrow shows its best move. Use <b>Back to game</b> to return to the reviewed moves.' } : null;
-  $('#card-rmove').innerHTML = buildMoveCard({ row, ply: S.ply, title: S.moves[i] ? moveTitle(S.moves[i].san, i, S.base, row?.cls) : '', evalAfter: row?.evalAfter, text: row?.text, busy: row?.busy, err: row?.err, canExplain: llmReady(), template: parts.text, tip: parts.tip, chips: row ? motifChips(row.motifs) : '', opening: R.opening, pending: R.status === 'running' && S.ply > 0 && !row, custom, best, exploring: !!R.explore });
+  $('#card-rmove').innerHTML = buildMoveCard({ row, ply: S.ply, title: S.moves[i] ? moveTitle(S.moves[i].san, i, S.base, row?.cls) : '', evalAfter: povEval(row?.evalAfter), text: row?.text, busy: row?.busy, err: row?.err, canExplain: llmReady(), template: parts.text, tip: parts.tip, chips: row ? motifChips(row.motifs) : '', opening: R.opening, pending: R.status === 'running' && S.ply > 0 && !row, custom, best, exploring: !!R.explore });
 }
 /** Stockfish's best move for whoever is to move: from the review on the game's own positions, live on the user's line. */
 function bestHere() {
@@ -1086,11 +1086,15 @@ async function explainRow(i) {
   try { row.text = await ask({ system: TUTOR_SYSTEM, user: tutorPrompt(row) }); } catch (e) { row.err = e.message; }
   row.busy = false; renderReview();
 }
+/** The review is read from the side at the bottom of the board: flip the board and the analysis follows Black. */
+const rvSide = () => S.orient;
+/** Flip a White-POV score string ("+0.35", "-#3", "1-0") to Black's point of view. */
+const povEval = s => { if (rvSide() === 'w' || !s) return s; if (s === '1-0') return '0-1'; if (s === '0-1') return '1-0'; if (s[0] === '+') return '-' + s.slice(1); if (s.startsWith('-#')) return s.slice(1); if (s[0] === '#') return '-' + s; if (s[0] === '-') return '+' + s.slice(1); return s; };
 function jumpMoment(dir) {
-  const bad = ['mistake', 'blunder', 'miss'], idx = R.rows.map((r, i) => (bad.includes(r.cls) ? i + 1 : 0)).filter(Boolean);
+  const bad = ['mistake', 'blunder', 'miss'], idx = R.rows.map((r, i) => (bad.includes(r.cls) && r.side === rvSide() ? i + 1 : 0)).filter(Boolean);
   const t = dir > 0 ? idx.find(p => p > S.ply) : [...idx].reverse().find(p => p < S.ply);
   if (R.explore) resetToGame(S.ply);
-  if (t) goto(t); else toast(dir > 0 ? 'No more mistakes ahead' : 'No earlier mistakes');
+  if (t) goto(t); else toast(dir > 0 ? `No more mistakes ahead for ${rvSide() === 'w' ? 'White' : 'Black'}` : `No earlier mistakes for ${rvSide() === 'w' ? 'White' : 'Black'}`);
 }
 function wireReview() {
   const warn = m => { const w = $('#rv-warn'); w.textContent = m || ''; w.classList.toggle('hidden', !m); };
