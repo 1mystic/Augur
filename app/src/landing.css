@@ -260,3 +260,11 @@ h3 { font-size: 24px; font-weight: 750; letter-spacing: -.02em; }
 /* raised bottom edge only on hover */
 .btn:hover, .icon-btn:hover, .chips button:hover { --lift: var(--edge); }
 .chips button:hover { --lift: 2px; }
+
+/* hover pop (fine pointers only) */
+@media (hover: hover) and (pointer: fine) {
+  .btn, .icon-btn, .chips button { transition: background .12s, color .12s, transform .08s, box-shadow .08s, scale .2s cubic-bezier(.34, 1.56, .64, 1), filter .15s; }
+  .btn:hover, .icon-btn:hover, .chips button:hover { scale: 1.06; filter: saturate(1.15) brightness(1.04); }
+  .btn:active, .icon-btn:active, .chips button:active { scale: .97; filter: none; }
+}
+@media (prefers-reduced-motion: reduce) { .btn, .icon-btn, .chips button { scale: 1 !important; } }

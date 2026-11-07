@@ -1468,3 +1468,23 @@ body.in-lesson .pbar .mat { visibility: hidden; }
   .hm-list .btn:active:not(:disabled) { transform: none; }
   .hm-list .btn span, .hm-list .hm-lbl, .top-r .hm-list .btn:not(.icon) span { display: inline; }
 }
+
+/* ---------- hover pop: the hovered control brightens and grows slightly (fine pointers only, never on touch) ---------- */
+/* a little more air inside the bars and rows so a popped control never touches its neighbours or the container edge */
+.rail, .subnav, .seg { padding: 6px; gap: 6px; }
+.tools { gap: 8px; }
+.top-r { gap: 10px; }
+.tchip, .ls-tile { margin: 1px; }
+@media (hover: hover) and (pointer: fine) {
+  :is(.btn, .primary, a.btn, .panel .rail button, .subnav button, .seg button, .pane-toggle, .tchip, .ls-tile) {
+    transition: background .12s, transform .08s, box-shadow .08s, color .12s, scale .2s var(--spring), filter .15s;
+  }
+  :is(.btn, a.btn, .panel .rail button, .subnav button, .seg button, .pane-toggle, .tchip, .ls-tile):hover:not(:disabled) { scale: 1.06; filter: saturate(1.15) brightness(1.04); }
+  .primary:hover:not(:disabled) { scale: 1.03; filter: saturate(1.15) brightness(1.04); }
+  :is(.btn, a.btn, .primary, .panel .rail button, .subnav button, .seg button, .pane-toggle, .tchip, .ls-tile):active:not(:disabled) { scale: .97; filter: none; }
+  /* full-width rows inside menus highlight instead of growing */
+  .hm-list .btn:hover:not(:disabled), .ng-item:hover { scale: 1; filter: none; }
+}
+.pref-noanim :is(.btn, .primary, .panel .rail button, .subnav button, .seg button, .pane-toggle, .tchip, .ls-tile),
+.lite :is(.btn, .primary, .panel .rail button, .subnav button, .seg button, .pane-toggle, .tchip, .ls-tile) { scale: 1 !important; filter: none !important; }
+@media (prefers-reduced-motion: reduce) { :is(.btn, .primary, .panel .rail button, .subnav button, .seg button, .pane-toggle, .tchip, .ls-tile) { scale: 1 !important; } }
