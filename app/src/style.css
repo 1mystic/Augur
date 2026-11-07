@@ -1391,7 +1391,7 @@ body.in-lesson .pbar .mat { visibility: hidden; }
 /* active: a raised solid key in the mode's colour (tabs and segments in the accent) */
 .panel .rail button[aria-checked="true"], :is(.top, .panel) .rail button[aria-checked="true"] {
   background: var(--h); color: var(--on-h) !important; box-shadow: 0 var(--lift, 0px) 0 color-mix(in srgb, var(--h) 55%, #000) !important; }
-.panel .rail button[aria-checked="true"] .ic { color: var(--on-h); opacity: 1; }
+:is(.top, .panel) .rail button[aria-checked="true"] .ic { color: var(--on-h); opacity: 1; }
 .subnav button[aria-selected="true"], .seg button[aria-checked="true"], .seg button.on {
   background: var(--btn-bg); color: var(--ink); box-shadow: 0 var(--lift, 0px) 0 var(--btn-edge) !important; font-weight: 800; }
 .subnav button[aria-selected="true"] { background: var(--h, var(--accent)); color: var(--on-h); box-shadow: 0 var(--lift, 0px) 0 color-mix(in srgb, var(--h, var(--accent)) 55%, #000) !important; }
