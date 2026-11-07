@@ -1512,3 +1512,12 @@ input:is([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type
 .btn, .primary, .pane-toggle, .ng-item, .tchip, .ls-tile, .movelist .m, .lines li, .sel-menu li, .graph, .drop, .switch, .su-card, .lesson-row { cursor: pointer; }
 :is(button, .btn, .primary, input, select):disabled, [aria-disabled="true"] { cursor: not-allowed; }
 .lines .empty { cursor: default; }
+
+/* checkmate pop must stay visible where animations are cut to 0s (lite) or turned off (reduced motion):
+   its keyframes end at opacity 0, so a 0s run used to hide it at once. Show it statically; JS removes it after 3 s. */
+.lite .mate-pop, .lite .mate-pop .mp, .lite .mate-pop .mp-k { animation: none !important; }
+.lite .mate-pop { background: rgba(16, 18, 26, .28); }
+@media (prefers-reduced-motion: reduce) {
+  .mate-pop, .mate-pop .mp, .mate-pop .mp-k { animation: none !important; }
+  .mate-pop { background: rgba(16, 18, 26, .28); }
+}

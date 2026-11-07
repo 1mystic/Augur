@@ -189,7 +189,7 @@ function refresh() {
   if (lessonActive()) status = lessonStatus();
   t.querySelector('span').textContent = status;
   t.classList.toggle('over', (!!g && g.isGameOver()) || !!C.flag);
-  if (!lessonActive() && g && g.isGameOver() && S.moves.length && S.ply === S.moves.length && S.endShown !== fen) { S.endShown = fen; if (g.isCheckmate()) matePop(winner); else toast(status, 4000); }
+  if (!lessonActive() && !(S.mode === 'review' && R.status === 'running') && g && g.isGameOver() && S.moves.length && S.ply === S.moves.length && S.endShown !== fen) {   /* not while a review replays the game */ S.endShown = fen; if (g.isCheckmate()) matePop(winner); else toast(status, 4000); }
   // move box follows the side to move
   const mine = humanCanMove();
   const over = !g || g.isGameOver() || S.edit || !mine, side = turn === 'w' ? 'White' : 'Black';
@@ -982,7 +982,7 @@ function cancelReview() { R.run++; R.status = 'idle'; R.rows = []; R.evals = [];
 async function startReview(game) {
   if (game.moves.length < 2) throw new Error('That game has fewer than 2 moves, nothing to review.');
   const run = ++R.run, cfg = SPEEDS[R.speed], standard = game.startFen === START_FEN, t0 = performance.now();
-  Object.assign(S, { base: game.startFen, moves: game.moves, ply: 0, valid: true, edit: false, lines: [], uncertain: new Set() });
+  Object.assign(S, { base: game.startFen, moves: game.moves, ply: 0, valid: true, edit: false, lines: [], uncertain: new Set(), endShown: null });
   const f = game.startFen.split(' '); Object.assign(S, { placement: f[0], turn: f[1], castle: f[2] === '-' ? '' : f[2] });
   const fens = [game.startFen, ...game.moves.map(m => m.fen)], sans = game.moves.map(m => m.san);
   Object.assign(R, { status: 'running', phase: 'quick', headers: game.headers || {}, rows: [], evals: [], ws: [], fens, total: game.moves.length, sans, standard, follow: true, got: 0, mainMoves: game.moves.slice(), explore: null,
@@ -1043,6 +1043,18 @@ function pushRow(i) {
   R.counts[side][r.cls] = (R.counts[side][r.cls] || 0) + 1; R.sum[side] += r.acc; R.n[side]++;
   R.acc = { w: R.n.w ? R.sum.w / R.n.w : 100, b: R.n.b ? R.sum.b / R.n.b : 100 };
 }
+/** Which graded move the review card shows: the bottom side's move. If the move just played was the other side's,
+ *  show the bottom side's reply from the position on the board (the decision you are looking at); fall back to
+ *  their previous move at the end of the game. Flip the board to follow Black instead of White. */
+function rvIndex() {
+  const i = S.ply - 1, side = S.orient;
+  if (reviewLive() || !R.rows.length) return i;
+  const rowSide = k => (k >= 0 && k < S.moves.length ? (k ? S.moves[k - 1].fen : S.base).split(' ')[1] : null);
+  if (i < 0) return -1;   // starting position: the card shows the game intro
+  if (rowSide(i) === side) return i;
+  if (rowSide(i + 1) === side && onMain(i + 2)) return i + 1;
+  return rowSide(i - 1) === side ? i - 1 : i;
+}
 function renderReview() {
   const on = S.mode === 'review', has = R.rows.length > 0;
   $('#card-rmove').classList.toggle('hidden', !(on && has && R.status !== 'idle'));
@@ -1054,7 +1066,7 @@ function renderReview() {
   document.querySelectorAll('#seg-speed button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === R.speed)));
   if (R.status === 'idle' || !has) return;
   $('#rv-summary').innerHTML = buildSummary(R, S.ply);
-  const i = S.ply - 1, row = reviewRowAt(i), live = reviewLive();
+  const i = rvIndex(), row = i >= 0 ? reviewRowAt(i) : null, live = reviewLive();
   const parts = row ? templateParts(row) : { text: '', tip: '' };
   const turn = curFen().split(' ')[1], who = turn === 'w' ? 'White' : 'Black', bh = R.status === 'done' && R.showBest ? bestHere() : null;
   const best = R.status !== 'done' ? '' : `<div class="rm-best"><span>${R.showBest ? (bh ? `★ Best for ${who}: ${bh.pending ? '<span class="dots">thinking…</span>' : `<b>${esc(bh.san)}</b> <em>${esc(povEval(bh.score))}</em>`}` : 'No moves: the game is over') : 'Stockfish\'s best move is hidden'}</span>`
@@ -1079,14 +1091,14 @@ function resetToGame(ply) {
   S.ply = Math.max(0, Math.min(at, S.moves.length)); refresh();
 }
 function reviewView() {
-  const row = S.ply ? reviewRowAt(S.ply - 1) : null, arrows = [];
-  if (row && !row.isBest && row.best && !['book', 'excellent', 'good'].includes(row.cls)) arrows.push({ from: row.best.slice(0, 2), to: row.best.slice(2, 4), color: '#4fbf8f', width: 12, label: '' });
+  const i = rvIndex(), row = i >= 0 ? reviewRowAt(i) : null, played = i === S.ply - 1, arrows = [];   // same move as the card
+  if (row && i >= S.ply - 1 && !row.isBest && row.best && !['book', 'excellent', 'good'].includes(row.cls)) arrows.push({ from: row.best.slice(0, 2), to: row.best.slice(2, 4), color: '#4fbf8f', width: 12, label: '' });
   // the opponent's punishing reply, so you can see what the mistake allowed
   const best = R.status === 'done' && R.showBest ? bestHere() : null;
   if (best?.uci) arrows.push({ from: best.uci.slice(0, 2), to: best.uci.slice(2, 4), color: '#6f86ff', width: 11, label: '' });   // best move for the side to move
   else if (!R.showBest) {
     const reply = row?.after?.best;   // the opponent's punishing reply, so you can see what the mistake allowed
-    if (reply && ['mistake', 'blunder', 'miss'].includes(row.cls)) arrows.push({ from: reply.slice(0, 2), to: reply.slice(2, 4), color: '#e0693f', width: 9, label: '' });
+    if (played && reply && ['mistake', 'blunder', 'miss'].includes(row.cls)) arrows.push({ from: reply.slice(0, 2), to: reply.slice(2, 4), color: '#e0693f', width: 9, label: '' });
   }
   return arrows;
 }
@@ -1128,7 +1140,7 @@ function wireReview() {
     const m = e.target.closest('[data-moment]'); if (m) jumpMoment(+m.dataset.moment);
   });
   $('#card-rmove').addEventListener('click', e => {
-    if (e.target.closest('[data-explain]')) explainRow(S.ply - 1);
+    if (e.target.closest('[data-explain]')) explainRow(rvIndex());
     const mm = e.target.closest('[data-moment]'); if (mm) jumpMoment(+mm.dataset.moment);
     if (e.target.closest('[data-best-toggle]')) { R.showBest = !R.showBest; store.set('rvbest', R.showBest); refresh(); }
     if (e.target.closest('[data-reset-line]')) { resetToGame(); toast('Back to the reviewed game'); }
