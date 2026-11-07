@@ -1622,7 +1622,7 @@ function init() {
   $('#settings').addEventListener('click', e => { const r = e.currentTarget.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) e.currentTarget.close(); });
   $('#btn-reset-all').addEventListener('click', resetAll);
   $('#btn-theme').addEventListener('click', () => { setTheme(isDark() ? 'light' : 'dark'); });
-  paintTheme();
+  paintTheme(); addEventListener('augur:theme', paintTheme);   // changed on another page / tab
   wireNewGame(); wireHeaderMenu();
   $('#btn-takeback').addEventListener('click', takeBack);
   $('#btn-resign').addEventListener('click', resignGame);

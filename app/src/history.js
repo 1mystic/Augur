@@ -1,7 +1,5 @@
 import '@fontsource-variable/outfit';
 import '@fontsource-variable/jetbrains-mono';
-import './landing.css';
-import './history.css';
 import { listGames, deleteGame, clearGames, putMany } from './store.js';
 import { MODES, titleOf, pgnOf, parsePgnGames, recordFromPgn, normalizeRecord } from './games.js';
 
@@ -19,6 +17,7 @@ $('#theme').addEventListener('click', () => {
   paintTheme();
 });
 paintTheme();
+addEventListener('augur:theme', paintTheme);   // changed on another page / tab
 
 // ---------- toast + confirm (shown inside an open dialog so they are never hidden behind it) ----------
 function toast(msg, ms = 2800) {

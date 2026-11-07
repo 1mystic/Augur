@@ -12,7 +12,22 @@
   <link rel="icon" href="./favicon-32.png" type="image/png" sizes="32x32" />
   <link rel="shortcut icon" href="./favicon.ico" />
   <link rel="apple-touch-icon" href="./icon-192.png" />
-  <script>try{var t=localStorage.getItem("augur:theme");if(t)document.documentElement.dataset.theme=JSON.parse(t)}catch(e){}</script>
+  <style>
+    /* paint the page's own background from the very first frame, so moving between pages never flashes white / unstyled */
+    html { background: #eceef4; color-scheme: light; }
+    html[data-theme="dark"] { background: #1b1c20; color-scheme: dark; }
+    @media (prefers-color-scheme: dark) { html:not([data-theme="light"]) { background: #1b1c20; color-scheme: dark; } }
+  </style>
+  <script>
+    // theme: applied before first paint, and kept in sync across the landing, app and history pages (and open tabs)
+    (function () {
+      var r = document.documentElement;
+      function apply() { try { var t = localStorage.getItem("augur:theme"); if (t) r.dataset.theme = JSON.parse(t); else delete r.dataset.theme; } catch (e) {} }
+      apply();
+      addEventListener("storage", function (e) { if (e.key === "augur:theme" || e.key === null) { apply(); dispatchEvent(new Event("augur:theme")); } });
+      addEventListener("pageshow", function (e) { if (e.persisted) { apply(); dispatchEvent(new Event("augur:theme")); } });
+    })();
+  </script>
   <link rel="stylesheet" href="./src/style.css" />
   <script>
     // CPU-friendly display for software-rendered or very low-end devices (no GPU, VMs, old laptops, weak phones)

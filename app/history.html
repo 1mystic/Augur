@@ -5,10 +5,28 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Game history | Augur</title>
   <meta name="description" content="Your Augur games, saved in this browser. Resume a game, review it, import or export your history." />
-  <meta name="theme-color" content="#1b1c20" />
+  <meta name="theme-color" content="#f6f7fb" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#1b1c20" media="(prefers-color-scheme: dark)" />
   <link rel="icon" href="./icon.svg" type="image/svg+xml" />
   <link rel="icon" href="./favicon-32.png" type="image/png" sizes="32x32" />
-  <script>try{var t=localStorage.getItem("augur:theme");if(t)document.documentElement.dataset.theme=JSON.parse(t)}catch(e){}</script>
+  <style>
+    /* paint the page's own background from the very first frame, so moving between pages never flashes white / unstyled */
+    html { background: #eceef4; color-scheme: light; }
+    html[data-theme="dark"] { background: #1b1c20; color-scheme: dark; }
+    @media (prefers-color-scheme: dark) { html:not([data-theme="light"]) { background: #1b1c20; color-scheme: dark; } }
+  </style>
+  <script>
+    // theme: applied before first paint, and kept in sync across the landing, app and history pages (and open tabs)
+    (function () {
+      var r = document.documentElement;
+      function apply() { try { var t = localStorage.getItem("augur:theme"); if (t) r.dataset.theme = JSON.parse(t); else delete r.dataset.theme; } catch (e) {} }
+      apply();
+      addEventListener("storage", function (e) { if (e.key === "augur:theme" || e.key === null) { apply(); dispatchEvent(new Event("augur:theme")); } });
+      addEventListener("pageshow", function (e) { if (e.persisted) { apply(); dispatchEvent(new Event("augur:theme")); } });
+    })();
+  </script>
+  <link rel="stylesheet" href="./src/landing.css" />
+  <link rel="stylesheet" href="./src/history.css" />
   <script type="module" src="./src/history.js"></script>
 </head>
 <body class="hist">

@@ -1,6 +1,5 @@
 import '@fontsource-variable/outfit';
 import '@fontsource-variable/jetbrains-mono';
-import './landing.css';
 
 // old share links pointed at the site root: forward them to the app
 if (/[#&](moves|pgn)=/.test(location.hash)) location.replace('./app.html' + location.hash);
@@ -20,6 +19,7 @@ $('#theme').addEventListener('click', () => {
   paintTheme();
 });
 paintTheme();
+addEventListener('augur:theme', paintTheme);   // changed on another page / tab
 
 // ---------- nav: glass background after scrolling ----------
 const nav = $('#nav');
