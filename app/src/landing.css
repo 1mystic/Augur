@@ -270,3 +270,8 @@ h3 { font-size: 24px; font-weight: 750; letter-spacing: -.02em; }
 @media (prefers-reduced-motion: reduce) { .btn, .icon-btn, .chips button { scale: 1 !important; } }
 
 .chips button[aria-pressed="true"] { --lift: 2px; }
+
+/* hand cursor on everything clickable and on hoverable cards, consistently */
+button, a[href], summary, select, label[for], label:has(> input), [role="button"], [role="tab"],
+.btn, .icon-btn, .chips button, .card, .tile, .gcard, .gact .btn { cursor: pointer; }
+:is(button, .btn, input, select):disabled, [aria-disabled="true"] { cursor: not-allowed; }

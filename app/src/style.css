@@ -1505,3 +1505,10 @@ body.in-lesson .pbar .mat { visibility: hidden; }
   #btn-new:hover:not(:disabled) { background: var(--btn-bg); }
   .hm-list .btn .ic { stroke-width: 2.4; }
 }
+
+/* hand cursor on everything clickable, consistently */
+button, a[href], summary, select, label[for], label:has(> input), [role="button"], [role="radio"], [role="tab"], [role="menuitem"], [role="option"],
+input:is([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"]),
+.btn, .primary, .pane-toggle, .ng-item, .tchip, .ls-tile, .movelist .m, .lines li, .sel-menu li, .graph, .drop, .switch, .su-card, .lesson-row { cursor: pointer; }
+:is(button, .btn, .primary, input, select):disabled, [aria-disabled="true"] { cursor: not-allowed; }
+.lines .empty { cursor: default; }
