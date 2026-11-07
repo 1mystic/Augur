@@ -268,3 +268,5 @@ h3 { font-size: 24px; font-weight: 750; letter-spacing: -.02em; }
   .btn:active, .icon-btn:active, .chips button:active { scale: .97; filter: none; }
 }
 @media (prefers-reduced-motion: reduce) { .btn, .icon-btn, .chips button { scale: 1 !important; } }
+
+.chips button[aria-pressed="true"] { --lift: 2px; }

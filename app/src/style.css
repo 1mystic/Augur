@@ -1488,3 +1488,8 @@ body.in-lesson .pbar .mat { visibility: hidden; }
 .pref-noanim :is(.btn, .primary, .panel .rail button, .subnav button, .seg button, .pane-toggle, .tchip, .ls-tile),
 .lite :is(.btn, .primary, .panel .rail button, .subnav button, .seg button, .pane-toggle, .tchip, .ls-tile) { scale: 1 !important; filter: none !important; }
 @media (prefers-reduced-motion: reduce) { :is(.btn, .primary, .panel .rail button, .subnav button, .seg button, .pane-toggle, .tchip, .ls-tile) { scale: 1 !important; } }
+
+/* selected / active controls keep their raised edge at rest, so they read as pressed-in-place real keys */
+:is(.btn.on, #btn-edit.on, #btn-focus[aria-pressed="true"], .panel .rail button[aria-checked="true"], :is(.top, .panel) .rail button[aria-checked="true"],
+    .subnav button[aria-selected="true"], .seg button[aria-checked="true"], .seg button.on) { --lift: var(--edge); }
+:is(.tchip.cur, .movelist .m.cur) { --lift: 2px; }
