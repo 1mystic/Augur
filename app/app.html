@@ -22,7 +22,7 @@
     // theme: applied before first paint, and kept in sync across the landing, app and history pages (and open tabs)
     (function () {
       var r = document.documentElement;
-      function apply() { try { var t = localStorage.getItem("augur:theme"); if (t) r.dataset.theme = JSON.parse(t); else delete r.dataset.theme; } catch (e) {} }
+      function apply() { var t = "dark"; try { var s = localStorage.getItem("augur:theme"); if (s) t = JSON.parse(s); } catch (e) {} if (t === "system") delete r.dataset.theme; else r.dataset.theme = t === "light" ? "light" : "dark"; }   // dark unless the user chose otherwise
       apply();
       addEventListener("storage", function (e) { if (e.key === "augur:theme" || e.key === null) { apply(); dispatchEvent(new Event("augur:theme")); } });
       addEventListener("pageshow", function (e) { if (e.persisted) { apply(); dispatchEvent(new Event("augur:theme")); } });

@@ -590,7 +590,7 @@ function resetState({ settings }) {
     S.mode = 'analysis'; S.hints = false; S.time = 0; S.bot = { level: 'intermediate', human: 'w' };
     Object.assign(P, PREF_DEFAULTS); applyPrefs(); engine?.setOptions({ MultiPV: P.lines });
     $('#auto').checked = false; $('#think').value = '1500';
-    delete document.documentElement.dataset.theme; $('#btn-theme use').setAttribute('href', matchMedia('(prefers-color-scheme: dark)').matches ? '#i-sun' : '#i-moon');
+    document.documentElement.dataset.theme = 'dark'; $('#btn-theme use').setAttribute('href', '#i-sun');   // default theme: dark
     for (const k of ['mode', 'hints', 'level', 'human', 'orient', 'auto', 'think', 'theme', 'speed', 'prefs', 'time']) try { localStorage.removeItem('augur:' + k); } catch { /* ignore */ }
   }
   Object.assign(S, { orient: vsBot() ? S.bot.human : 'w', turn: 'w', castle: 'KQkq', placement: START, edit: false, tool: null, lines: [], uncertain: new Set(), endShown: null });
@@ -1317,7 +1317,7 @@ function enhanceSelect(sel, { small = false } = {}) {
 const isDark = () => (document.documentElement.dataset.theme ? document.documentElement.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches);
 function paintTheme() { $('#btn-theme use').setAttribute('href', isDark() ? '#i-sun' : '#i-moon'); }
 function setTheme(t) {   // 'light' | 'dark' | 'system'
-  if (t === 'system') { delete document.documentElement.dataset.theme; try { localStorage.removeItem('augur:theme'); } catch { /* ignore */ } }
+  if (t === 'system') { delete document.documentElement.dataset.theme; store.set('theme', 'system'); }   // nothing saved = dark (the default)
   else { document.documentElement.dataset.theme = t; store.set('theme', t); }
   paintTheme(); syncPrefsUI();
 }
@@ -1332,7 +1332,7 @@ function setPref(k, v) {
 }
 function syncPrefsUI() {
   const seg = (sel, v) => document.querySelectorAll(sel + ' button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === String(v))));
-  seg('#set-theme', store.get('theme', 'system')); seg('#set-lines', P.lines); seg('#set-who', P.who); seg('#set-level', P.level); seg('#set-think', $('#think').value);
+  seg('#set-theme', store.get('theme', 'dark')); seg('#set-lines', P.lines); seg('#set-who', P.who); seg('#set-level', P.level); seg('#set-think', $('#think').value);
   for (const [id, k] of [['coords', 'coords'], ['dots', 'dots'], ['evalbar', 'evalbar'], ['anim', 'anim'], ['autoq', 'autoq'], ['history', 'history'], ['sound', 'sound']]) $('#set-' + id).checked = P[k];
   $('#set-auto').checked = $('#auto').checked;
 }
