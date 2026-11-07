@@ -1493,3 +1493,15 @@ body.in-lesson .pbar .mat { visibility: hidden; }
 :is(.btn.on, #btn-edit.on, #btn-focus[aria-pressed="true"], .panel .rail button[aria-checked="true"], :is(.top, .panel) .rail button[aria-checked="true"],
     .subnav button[aria-selected="true"], .seg button[aria-checked="true"], .seg button.on) { --lift: var(--edge); }
 :is(.tchip.cur, .movelist .m.cur) { --lift: 2px; }
+
+/* header + dialog-close icon buttons: no filled background or edge, a bolder icon instead */
+.top-r .btn.icon, .dlg-h .btn.icon { background: transparent; box-shadow: none !important; }
+.top-r .btn.icon .ic, .dlg-h .btn.icon .ic, #btn-menu .ic { stroke-width: 2.8; width: 20px; height: 20px; }
+.top-r .btn.icon:hover:not(:disabled), .dlg-h .btn.icon:hover:not(:disabled) { background: var(--btn-bg); }
+@media (max-width: 760px) {
+  .top .status { background: transparent; }
+  #btn-new { background: transparent; box-shadow: none !important; }
+  #btn-new .ic { stroke-width: 2.8; width: 20px; height: 20px; }
+  #btn-new:hover:not(:disabled) { background: var(--btn-bg); }
+  .hm-list .btn .ic { stroke-width: 2.4; }
+}
