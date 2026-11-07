@@ -59,6 +59,7 @@
       <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
       <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/></symbol>
       <symbol id="i-expand" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
+      <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
       <symbol id="i-collapse" viewBox="0 0 24 24"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></symbol>
       <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
       <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></symbol>
@@ -86,10 +87,15 @@
         <button class="btn" id="btn-new" type="button" aria-haspopup="menu" aria-expanded="false" title="Start a new game"><svg class="ic"><use href="#i-plus"/></svg><span>New game</span></button>
         <div class="ng-menu hidden" id="ng-menu" role="menu" aria-label="New game"></div>
       </div>
-      <button class="btn" id="btn-reset-all" type="button" title="Reset everything to defaults"><svg class="ic"><use href="#i-reset"/></svg><span>Reset</span></button>
-      <a class="btn icon" id="btn-history" href="./history.html" title="Game history: resume, review, import, export" aria-label="Game history"><svg class="ic"><use href="#i-clock"/></svg></a>
-      <button class="btn icon" id="btn-theme" type="button" title="Switch light / dark theme" aria-label="Switch theme"><svg class="ic"><use href="#i-moon"/></svg></button>
-      <button class="btn icon" id="btn-settings" type="button" title="Settings (AI tutor key)" aria-label="Settings"><svg class="ic"><use href="#i-gear"/></svg></button>
+      <div class="hm">
+        <button class="btn icon" id="btn-menu" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="hm-list" title="Menu" aria-label="Menu"><svg class="ic"><use href="#i-menu"/></svg></button>
+        <div class="hm-list" id="hm-list">
+          <button class="btn" id="btn-reset-all" type="button" title="Reset everything to defaults"><svg class="ic"><use href="#i-reset"/></svg><span>Reset</span></button>
+          <a class="btn icon" id="btn-history" href="./history.html" title="Game history: resume, review, import, export" aria-label="Game history"><svg class="ic"><use href="#i-clock"/></svg><span class="hm-lbl">History</span></a>
+          <button class="btn icon" id="btn-theme" type="button" title="Switch light / dark theme" aria-label="Switch theme"><svg class="ic"><use href="#i-moon"/></svg><span class="hm-lbl">Theme</span></button>
+          <button class="btn icon" id="btn-settings" type="button" title="Settings (AI tutor key)" aria-label="Settings"><svg class="ic"><use href="#i-gear"/></svg><span class="hm-lbl">Settings</span></button>
+        </div>
+      </div>
     </div>
   </header>
 

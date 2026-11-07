@@ -723,8 +723,18 @@ async function startNew(mode) {
   if (mode === 'review') { cancelReview(); setTab('main'); refresh(); toast('Paste a game to review'); return; }
   resetState({ settings: false }); setTab('main'); toast(MODE_INFO[mode].fresh);
 }
+/** Phones: the header's Reset / History / Theme / Settings live in a dropdown behind a menu button. */
+function wireHeaderMenu() {
+  const wrap = document.querySelector('.hm'), btn = $('#btn-menu');
+  const set = open => { wrap.classList.toggle('open', open); btn.setAttribute('aria-expanded', String(open)); };
+  btn.addEventListener('click', e => { e.stopPropagation(); toggleNewMenu(false); set(!wrap.classList.contains('open')); });
+  wrap.addEventListener('click', e => { if (e.target.closest('.hm-list .btn')) set(false); });
+  document.addEventListener('click', e => { if (!e.target.closest('.hm')) set(false); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && wrap.classList.contains('open')) { set(false); btn.focus(); } });
+  matchMedia('(min-width: 761px)').addEventListener('change', e => { if (e.matches) set(false); });
+}
 function wireNewGame() {
-  $('#btn-new').addEventListener('click', e => { e.stopPropagation(); toggleNewMenu(); });
+  $('#btn-new').addEventListener('click', e => { e.stopPropagation(); document.querySelector('.hm')?.classList.remove('open'); toggleNewMenu(); });
   $('#ng-menu').addEventListener('click', e => {
     if (e.target.closest('[data-from-board]')) { toggleNewMenu(false); startFromBoard(); return; }
     const b = e.target.closest('[data-new]'); if (b) startNew(b.dataset.new);
@@ -1613,7 +1623,7 @@ function init() {
   $('#btn-reset-all').addEventListener('click', resetAll);
   $('#btn-theme').addEventListener('click', () => { setTheme(isDark() ? 'light' : 'dark'); });
   paintTheme();
-  wireNewGame();
+  wireNewGame(); wireHeaderMenu();
   $('#btn-takeback').addEventListener('click', takeBack);
   $('#btn-resign').addEventListener('click', resignGame);
   $('#btn-focus').addEventListener('click', () => setFocus(!document.body.classList.contains('focus')));

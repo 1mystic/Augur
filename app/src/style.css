@@ -1350,11 +1350,13 @@ body.in-lesson .pbar .mat { visibility: hidden; }
 :root[data-theme="dark"] { --btn-bg: #34363e; --btn-bg-h: #3d3f48; --btn-edge: #1f2025; --on-h: #15161a; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --btn-bg: #34363e; --btn-bg-h: #3d3f48; --btn-edge: #1f2025; --on-h: #15161a; } }
 
-/* ---------- buttons: solid face, darker edge below, press moves it down ---------- */
+/* ---------- buttons: solid face; the raised bottom edge only shows on hover, pressing moves it down ---------- */
+:is(.btn, .primary, a.btn, .panel .rail button, .subnav button, .seg button, .pane-toggle):hover:not(:disabled) { --lift: var(--edge); }
+:is(.tchip, .ls-tile, .movelist .m):hover { --lift: 2px; }
 .btn, .primary, a.btn {
   min-height: var(--ctl-sm); border-radius: var(--r-ctl); border: 0 !important;
   background: var(--btn-bg); color: var(--btn-ink);
-  box-shadow: 0 var(--edge) 0 var(--btn-edge) !important;
+  box-shadow: 0 var(--lift, 0px) 0 var(--btn-edge) !important;
   transform: translateY(0); transition: background .12s, transform .08s, box-shadow .08s, color .12s;
 }
 .btn:hover:not(:disabled), a.btn:hover { background: var(--btn-bg-h); color: var(--btn-ink); transform: translateY(0); }
@@ -1363,13 +1365,13 @@ body.in-lesson .pbar .mat { visibility: hidden; }
 .top-r .btn, .top-r .status { min-height: var(--ctl); height: var(--ctl); }
 .btn.sm { min-height: var(--ctl-sm); padding: 0 13px; }
 .under .btn { min-height: var(--ctl); }
-.btn:disabled { opacity: .5; box-shadow: 0 1px 0 var(--btn-edge) !important; }
-.btn.on, #btn-edit.on, #btn-focus[aria-pressed="true"] { background: var(--accent); color: var(--on-h); box-shadow: 0 var(--edge) 0 color-mix(in srgb, var(--accent) 55%, #000) !important; }
-.btn.resign:hover:not(:disabled) { background: var(--rose); color: var(--on-h); box-shadow: 0 var(--edge) 0 color-mix(in srgb, var(--rose) 55%, #000) !important; }
+.btn:disabled { opacity: .5; box-shadow: none !important; }
+.btn.on, #btn-edit.on, #btn-focus[aria-pressed="true"] { background: var(--accent); color: var(--on-h); box-shadow: 0 var(--lift, 0px) 0 color-mix(in srgb, var(--accent) 55%, #000) !important; }
+.btn.resign:hover:not(:disabled) { background: var(--rose); color: var(--on-h); box-shadow: 0 var(--lift, 0px) 0 color-mix(in srgb, var(--rose) 55%, #000) !important; }
 
 /* primary actions: solid in the card's own colour */
 .primary { min-height: var(--ctl-lg); background: var(--h, var(--accent)); color: var(--on-h);
-  box-shadow: 0 var(--edge) 0 color-mix(in srgb, var(--h, var(--accent)) 55%, #000) !important; }
+  box-shadow: 0 var(--lift, 0px) 0 color-mix(in srgb, var(--h, var(--accent)) 55%, #000) !important; }
 .primary:hover:not(:disabled) { background: color-mix(in srgb, var(--h, var(--accent)) 88%, #fff); color: var(--on-h); }
 .card .primary, .card .primary:hover { color: var(--on-h); }
 .primary kbd { background: color-mix(in srgb, var(--on-h) 18%, transparent); color: inherit; border: 0; }
@@ -1388,18 +1390,18 @@ body.in-lesson .pbar .mat { visibility: hidden; }
 .panel .rail button:hover, .subnav button:hover, .seg button:hover { background: var(--btn-bg); color: var(--ink); transform: none; }
 /* active: a raised solid key in the mode's colour (tabs and segments in the accent) */
 .panel .rail button[aria-checked="true"], :is(.top, .panel) .rail button[aria-checked="true"] {
-  background: var(--h); color: var(--on-h) !important; box-shadow: 0 var(--edge) 0 color-mix(in srgb, var(--h) 55%, #000) !important; }
+  background: var(--h); color: var(--on-h) !important; box-shadow: 0 var(--lift, 0px) 0 color-mix(in srgb, var(--h) 55%, #000) !important; }
 .panel .rail button[aria-checked="true"] .ic { color: var(--on-h); opacity: 1; }
 .subnav button[aria-selected="true"], .seg button[aria-checked="true"], .seg button.on {
-  background: var(--btn-bg); color: var(--ink); box-shadow: 0 var(--edge) 0 var(--btn-edge) !important; font-weight: 800; }
-.subnav button[aria-selected="true"] { background: var(--h, var(--accent)); color: var(--on-h); box-shadow: 0 var(--edge) 0 color-mix(in srgb, var(--h, var(--accent)) 55%, #000) !important; }
+  background: var(--btn-bg); color: var(--ink); box-shadow: 0 var(--lift, 0px) 0 var(--btn-edge) !important; font-weight: 800; }
+.subnav button[aria-selected="true"] { background: var(--h, var(--accent)); color: var(--on-h); box-shadow: 0 var(--lift, 0px) 0 color-mix(in srgb, var(--h, var(--accent)) 55%, #000) !important; }
 .panel .rail button:active, .subnav button:active, .seg button:active { transform: translateY(2px); }
 /* inputs line up with controls */
 #move-in, .ls-ask input, .fen-row input { min-height: var(--ctl); }
 
 /* move pills + theme tiles + lesson rows share the soft key look */
-.tchip, .ls-tile, .movelist .m { box-shadow: 0 2px 0 var(--btn-edge) !important; }
-.tchip.cur, .movelist .m.cur { box-shadow: 0 2px 0 color-mix(in srgb, var(--accent) 55%, #000) !important; }
+.tchip, .ls-tile, .movelist .m { box-shadow: 0 var(--lift, 0px) 0 var(--btn-edge) !important; }
+.tchip.cur, .movelist .m.cur { box-shadow: 0 var(--lift, 0px) 0 color-mix(in srgb, var(--accent) 55%, #000) !important; }
 .tchip:active, .ls-tile:active, .movelist .m:active { transform: translateY(2px); box-shadow: none !important; }
 
 /* ---------- focus mode: panel and mode bar hidden, the board takes the stage ---------- */
@@ -1422,9 +1424,9 @@ body.in-lesson .pbar .mat { visibility: hidden; }
 
 /* panel toggle: a highlighted key at the right end of the mode bar (stays there when the panel is hidden) */
 .pane-toggle { position: fixed; z-index: 30; transform: translate(-50%, -50%); width: var(--ctl); height: var(--ctl); padding: 0; border: 0; border-radius: var(--r-ctl);
-  display: none; place-items: center; cursor: pointer; background: var(--accent); color: var(--on-h);
-  box-shadow: 0 var(--edge) 0 color-mix(in srgb, var(--accent) 55%, #000); transition: background .12s, transform .08s, box-shadow .08s; }
-.pane-toggle:hover { background: color-mix(in srgb, var(--accent) 88%, #fff); }
+  display: none; place-items: center; cursor: pointer; background: var(--violet); color: var(--on-h);
+  box-shadow: 0 var(--lift, 0px) 0 color-mix(in srgb, var(--violet) 55%, #000); transition: background .12s, transform .08s, box-shadow .08s; }
+.pane-toggle:hover { background: color-mix(in srgb, var(--violet) 88%, #fff); }
 .pane-toggle:active { transform: translate(-50%, calc(-50% + var(--edge))); box-shadow: 0 0 0 transparent; }
 .pane-toggle .ic { width: 18px; height: 18px; stroke-width: 2.6; }
 @media (min-width: 981px) {
@@ -1447,3 +1449,22 @@ body.in-lesson .pbar .mat { visibility: hidden; }
 .lite .pc.lift { scale: 1.08; }
 .lite .sq.check::before { animation: none; }
 .lite .sq.dot::after, .lite .sq.cap::after { transition: none; }
+
+/* ---------- header menu: Reset / History / Theme / Settings sit inline on desktop and fold into a dropdown on phones ---------- */
+.hm { display: contents; }
+.hm-list { display: contents; }
+#btn-menu, .hm-lbl { display: none; }
+@media (max-width: 760px) {
+  .hm { position: relative; display: flex; flex: none; }
+  #btn-menu { display: inline-grid; }
+  .hm-list { display: none; position: absolute; right: 0; top: calc(100% + 8px); z-index: 40; width: 220px; padding: 6px; gap: 2px; flex-direction: column;
+    background: var(--surface); border-radius: var(--r); transform-origin: top right;
+    box-shadow: 0 18px 40px -12px rgba(0, 0, 0, .45), 0 0 0 1px var(--border-strong); }
+  .hm.open .hm-list { display: flex; animation: rise .25s var(--ease) both; }
+  .hm-list .btn, .hm-list .btn.icon, .top-r .hm-list .btn:not(.icon) {
+    width: 100%; height: auto; min-height: 44px; padding: 0 12px; justify-content: flex-start; gap: 12px; background: transparent; box-shadow: none !important;
+    font: 700 14px/1 var(--ui, var(--sans)); text-transform: none; letter-spacing: 0; color: var(--ink); }
+  .hm-list .btn:hover:not(:disabled) { background: var(--btn-bg); }
+  .hm-list .btn:active:not(:disabled) { transform: none; }
+  .hm-list .btn span, .hm-list .hm-lbl, .top-r .hm-list .btn:not(.icon) span { display: inline; }
+}
