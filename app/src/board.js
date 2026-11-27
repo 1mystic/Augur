@@ -86,8 +86,10 @@ export class Board {
       if (!img || img.dataset.p !== s.pieces[this.drag.sq]) {
         img?.remove();
         img = this._float = document.createElement('img'); img.src = pieceSrc(s.pieces[this.drag.sq]); img.className = 'pc floating'; img.dataset.p = s.pieces[this.drag.sq];
-        this.pcEl.appendChild(img);
+        // on <body>, not inside the board: a board with contain/transform (lite mode) would offset a fixed-position child
+        document.body.appendChild(img);
       }
+      img.style.width = this.el.getBoundingClientRect().width / 8 + 'px';
       img.style.left = this.drag.x + 'px'; img.style.top = this.drag.y + 'px'; this.drag.img = img;
     } else if (this._float) { this._float.remove(); this._float = null; }
     const ar = s.arrows.map(a => this._arrow(a)).join('') + this._badge(s.badge);
